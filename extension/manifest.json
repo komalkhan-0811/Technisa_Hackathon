@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Are You Actually Reading?",
+  "version": "0.1.0",
+  "description": "Detects skimming on long-form pages and quizzes you on what you just skimmed.",
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Are You Actually Reading?"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/Readability.js", "content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {}
+}

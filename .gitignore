@@ -1,0 +1,12 @@
+# Backend
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+backend/venv/
+backend/.venv/
+
+# Node (if any tooling gets added later)
+node_modules/
+
+# OS
+.DS_Store
