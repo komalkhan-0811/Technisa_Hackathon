@@ -34,8 +34,12 @@ body {
   margin: 0;
   width: 360px;
   min-height: 420px;
-  background: var(--ink);
-  color: var(--ink);
+  /* Was hardcoded to --ink -- matched the card in dark mode by
+     coincidence (surface = ink there too) but left a mismatched dark
+     frame around the card in light mode. --surface always matches
+     whatever the card itself is showing, in every mode. */
+  background: var(--surface);
+  color: var(--on-surface);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   line-height: 1.45;
@@ -66,7 +70,7 @@ body {
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--paper);
+  color: var(--on-surface);
   opacity: 0.75;
 }
 
