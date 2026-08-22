@@ -35,6 +35,11 @@ const CardQuiz = {
     this.els.loading.classList.remove("hidden");
     this.els.content.classList.add("hidden");
     this.els.error.classList.add("hidden");
+    // quiz-progress lives in the card header, a sibling of .content, so
+    // hiding .content alone leaves its static "Question 2/5" placeholder
+    // (baked into the original mockup HTML) visible until real data
+    // overwrites it -- which never happens if generation fails.
+    this.els.progress.textContent = "";
   },
 
   showError(message) {
@@ -42,6 +47,7 @@ const CardQuiz = {
     this.els.content.classList.add("hidden");
     this.els.error.classList.remove("hidden");
     this.els.error.textContent = message;
+    this.els.progress.textContent = "";
   },
 
   clearDismissTimer() {
