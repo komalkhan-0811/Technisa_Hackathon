@@ -9,20 +9,157 @@
 //   4. On an incorrect quiz answer, locate `source_excerpt` in the page via
 //      the DOM Range/Selection API, scroll it into view, and highlight it.
 
+// --- Config (tune during build/testing) ----------------------------------
+
+const DEBUG = true;
+
+const MIN_SECTION_WORDS = 8; // ignore trivial fragments (nav links, captions)
+const MS_PER_100_WORDS = 1500; // min visible time to NOT count as skimmed
+const PROMINENCE_RATIO = 0.5; // fraction of the section that must be visible...
+const PROMINENCE_MIN_MS = 400; // ...for at least this long to count as "seen"
+
+function log(...args) {
+  if (DEBUG) console.log("[skim-detection]", ...args);
+}
+
 // --- State -------------------------------------------------------------
 
-const skimmedSections = new Map(); // sectionId -> { text, wordCount }
+const skimmedSections = new Map(); // sectionId -> { id, text, wordCount }
+const sectionState = new Map(); // element -> tracking state (see observeSections)
 
-// --- TODO: FR1 Text extraction ------------------------------------------
-// Use window.Readability (from Readability.js) against a cloned document
-// to get { title, textContent } for the full article, e.g.:
-//   const article = new Readability(document.cloneNode(true)).parse();
+function countWords(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
 
-// --- TODO: FR2 Reading behavior tracking --------------------------------
-// - Split article into paragraph/heading-delimited sections.
-// - Observe each with IntersectionObserver.
-// - Track time-in-viewport vs. word count to flag skimmed sections
-//   (threshold: ~1.5s / 100 words, tune during build).
+function normalizeWhitespace(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// --- FR1: Text extraction -------------------------------------------------
+// Readability.parse() mutates/strips whatever document it's given, so it
+// must run against a clone, never the live document. Its cleaned
+// textContent is used as ground truth for "is this really article text"
+// (see getSections), not as the source of the observed DOM elements --
+// IntersectionObserver needs real, live nodes to watch.
+
+function extractArticleText() {
+  try {
+    const clone = document.cloneNode(true);
+    const article = new Readability(clone).parse();
+    return article ? normalizeWhitespace(article.textContent) : null;
+  } catch (err) {
+    console.warn("[skim-detection] Readability parse failed:", err);
+    return null;
+  }
+}
+
+// --- FR2: Reading behavior tracking ----------------------------------------
+
+function getSections(articleText) {
+  const nodes = Array.from(
+    document.querySelectorAll("p, h1, h2, h3, h4, h5, h6")
+  );
+
+  return nodes
+    .map((el, index) => ({
+      id: `section-${index}`,
+      el,
+      text: normalizeWhitespace(el.textContent),
+    }))
+    .filter((s) => {
+      if (countWords(s.text) < MIN_SECTION_WORDS) return false;
+      // If Readability extraction failed (e.g. non-article page), skip the
+      // article-membership filter rather than tracking nothing.
+      if (articleText && !articleText.includes(s.text)) return false;
+      return true;
+    });
+}
+
+function evaluateSkim(state) {
+  const minReadMs = (state.wordCount / 100) * MS_PER_100_WORDS;
+  const tooFast = state.totalVisibleMs < minReadMs;
+  const neverProminent = state.prominentMs < PROMINENCE_MIN_MS;
+  return tooFast || neverProminent;
+}
+
+function observeSections(sections) {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const now = performance.now();
+
+      entries.forEach((entry) => {
+        const state = sectionState.get(entry.target);
+        if (!state) return;
+
+        // Close out the interval since the last observed ratio before
+        // applying the new one.
+        if (state.lastTimestamp != null) {
+          const elapsed = now - state.lastTimestamp;
+          if (state.currentRatio > 0) state.totalVisibleMs += elapsed;
+          if (state.currentRatio >= PROMINENCE_RATIO) {
+            state.prominentMs += elapsed;
+          }
+        }
+        state.currentRatio = entry.intersectionRatio;
+        state.lastTimestamp = now;
+        if (entry.intersectionRatio > 0) state.visited = true;
+
+        // Section has fully scrolled past (or back out of view) -- finalize
+        // its skim verdict. Dwell time accumulates across repeat visits, so
+        // scrolling back up to re-read a section can clear its skim flag.
+        if (state.visited && entry.intersectionRatio === 0) {
+          const skimmed = evaluateSkim(state);
+          if (skimmed) {
+            skimmedSections.set(state.id, {
+              id: state.id,
+              text: state.text,
+              wordCount: state.wordCount,
+            });
+          } else {
+            skimmedSections.delete(state.id);
+          }
+          log(
+            skimmed ? "flagged as skimmed:" : "read sufficiently:",
+            state.id,
+            `(${Math.round(state.totalVisibleMs)}ms visible, ${Math.round(
+              state.prominentMs
+            )}ms prominent, ${state.wordCount} words)`
+          );
+        }
+      });
+    },
+    { threshold: [0, 0.25, 0.5, 0.75, 1] }
+  );
+
+  sections.forEach((section) => {
+    sectionState.set(section.el, {
+      id: section.id,
+      text: section.text,
+      wordCount: countWords(section.text),
+      totalVisibleMs: 0,
+      prominentMs: 0,
+      lastTimestamp: null,
+      currentRatio: 0,
+      visited: false,
+    });
+    observer.observe(section.el);
+  });
+
+  return observer;
+}
+
+function initSkimTracking() {
+  const articleText = extractArticleText();
+  const sections = getSections(articleText);
+  log(`tracking ${sections.length} section(s)`, { articleTextFound: !!articleText });
+  observeSections(sections);
+}
+
+if (document.readyState === "complete") {
+  initSkimTracking();
+} else {
+  window.addEventListener("load", initSkimTracking);
+}
 
 // --- TODO: FR5 Highlight-on-wrong-answer ---------------------------------
 // function highlightExcerpt(sourceExcerpt) {
