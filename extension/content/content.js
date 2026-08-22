@@ -151,6 +151,7 @@ function observeSections(sections) {
               id: state.id,
               text: state.text,
               wordCount: state.wordCount,
+              flaggedAt: Date.now(), // lets the popup throttle a burst of flags for display
             });
           } else {
             skimmedSections.delete(state.id);
@@ -206,16 +207,25 @@ function startTracking(articleText) {
 // estimate across every section that's actually been seen so far (not just
 // the skimmed ones), so it reflects real reading pace rather than only the
 // bad parts.
+const MAX_REALISTIC_WPM = 600; // well above typical adult reading speed but
+// still human -- scroll-based dwell time is an imprecise proxy for actual
+// reading pace, so this caps the display rather than trusting the raw math
+// for edge cases (e.g. a section that's on-screen just long enough to clear
+// the skim threshold, which alone can still compute to several thousand wpm).
+
 function getReadingStats() {
   let totalWords = 0;
   let totalMs = 0;
   sectionState.forEach((state) => {
-    if (!state.visited) return;
+    // Skimmed sections are low-dwell-time-per-word by definition, which
+    // skews any aggregate wildly upward -- excluding them keeps this a
+    // measure of actual reading pace, not skimming pace.
+    if (!state.visited || evaluateSkim(state)) return;
     totalWords += state.wordCount;
     totalMs += state.totalVisibleMs;
   });
-  const wpm = totalMs > 0 ? totalWords / (totalMs / 60000) : 0;
-  return { wpm };
+  const rawWpm = totalMs > 0 ? totalWords / (totalMs / 60000) : 0;
+  return { wpm: Math.min(rawWpm, MAX_REALISTIC_WPM) };
 }
 
 // --- FR5: Highlight-on-wrong-answer ---------------------------------------

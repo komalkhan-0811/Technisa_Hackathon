@@ -61,7 +61,8 @@ const CardDashboard = {
       this.els.flaggedEmpty.classList.remove("hidden");
     } else {
       this.els.flaggedEmpty.classList.add("hidden");
-      skimmedSections.forEach((section, index) => {
+      const displaySections = MarginaliaPopup.throttleFlaggedSections(skimmedSections);
+      displaySections.forEach((section, index) => {
         const li = document.createElement("li");
         li.className = "flagged-item";
         li.innerHTML = `<span>${MarginaliaPopup.sectionLabel(section, index)}</span><span class="flagged-item-arrow" aria-hidden="true">→</span>`;

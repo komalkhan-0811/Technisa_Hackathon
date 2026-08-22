@@ -84,6 +84,28 @@ const MarginaliaPopup = {
     await chrome.storage.local.set({ [this.STORAGE.quizStats]: stats });
   },
 
+  // A single fast scroll through a long article can flag dozens of
+  // sections within a couple seconds of each other -- listing every one
+  // reads as noise rather than signal. Keeps only entries at least
+  // minGapMs apart (by when they were actually flagged), so the list
+  // reflects distinct moments of skimming rather than one burst repeated
+  // many times. Sections arrive in flagged order already (skimmedSections
+  // is a Map, insertion order = chronological), so a single forward pass
+  // is enough. The flagged *count* elsewhere stays the true total --
+  // only this display list is thinned.
+  throttleFlaggedSections(sections, minGapMs = 2000) {
+    const kept = [];
+    let lastKeptAt = -Infinity;
+    sections.forEach((section) => {
+      const at = section.flaggedAt ?? 0;
+      if (at - lastKeptAt >= minGapMs) {
+        kept.push(section);
+        lastKeptAt = at;
+      }
+    });
+    return kept;
+  },
+
   sectionLabel(section, index) {
     const sectionNum = section.id?.replace("section-", "") ?? index + 1;
     const words = section.wordCount || 0;
