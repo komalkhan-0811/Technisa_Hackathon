@@ -9,11 +9,16 @@
   --accent: #a6742e;
   --alert: #7c3b3b;
   --success: #4c6b4f;
-  /* Derived from the five base tokens above via color-mix(), so they stay
-     correct across all 3 themes x 2 modes without needing their own
-     per-theme values. */
-  --paper-muted: color-mix(in srgb, var(--paper), var(--ink) 8%);
-  --ink-soft: color-mix(in srgb, var(--ink), transparent 35%);
+  /* Dark mode (the default here): the card surface is the dark "ink" tone
+     with light "paper" text -- see applyTheme()'s comment in
+     shared/themes.js for why this isn't just --paper/--ink directly. */
+  --surface: #16211c;
+  --on-surface: #e4e0c8;
+  /* Derived from --surface/--on-surface via color-mix(), so they stay
+     correct across all 3 themes x 2 modes x light/dark without needing
+     their own per-variation values. */
+  --paper-muted: color-mix(in srgb, var(--surface), var(--on-surface) 18%);
+  --ink-soft: color-mix(in srgb, var(--on-surface), transparent 35%);
   --bookmark: #6b2d3c;
   --radius: 10px;
   --radius-sm: 6px;
@@ -73,7 +78,8 @@ body:has(#app.test-all-visible) {
 
 .card-chrome {
   position: relative;
-  background: var(--paper);
+  background: var(--surface);
+  color: var(--on-surface);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
@@ -102,7 +108,7 @@ body:has(#app.test-all-visible) {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: var(--on-surface);
 }
 
 .bookmark {
@@ -124,7 +130,7 @@ body:has(#app.test-all-visible) {
   font-style: italic;
   line-height: 1.15;
   margin: 0 0 12px;
-  color: var(--ink);
+  color: var(--on-surface);
 }
 
 .body-copy {

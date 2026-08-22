@@ -36,6 +36,19 @@ function applyTheme(themeName, mode, root) {
   Object.entries(tokens).forEach(([key, value]) => {
     target.style.setProperty(`--${key}`, value);
   });
+
+  // Semantic surface/foreground pair, on top of the five raw tokens above.
+  // In light mode the card surface is the light "paper" tone with dark
+  // "ink" text -- an ordinary page. In dark mode that inverts: the card
+  // itself becomes the dark "ink" tone with light "paper" text, rather than
+  // staying a literal (light) sheet of paper. CSS that draws a card/panel
+  // should use --surface/--on-surface, not --paper/--ink directly, so it
+  // actually goes dark in dark mode instead of just changing which shade of
+  // paper it uses.
+  const isDark = mode === "dark";
+  target.style.setProperty("--surface", isDark ? tokens.ink : tokens.paper);
+  target.style.setProperty("--on-surface", isDark ? tokens.paper : tokens.ink);
+
   target.dataset.theme = themeName;
   target.dataset.mode = mode;
 }

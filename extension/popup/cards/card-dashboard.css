@@ -67,7 +67,7 @@
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 15px;
   font-weight: 500;
-  color: var(--ink);
+  color: var(--on-surface);
 }
 
 .stat-flagged {
@@ -106,7 +106,7 @@
   padding: 10px 0;
   border-bottom: 1px solid var(--paper-muted);
   font-size: 12px;
-  color: var(--ink);
+  color: var(--on-surface);
   cursor: default;
 }
 
