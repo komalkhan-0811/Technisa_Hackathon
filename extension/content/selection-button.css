@@ -1,8 +1,8 @@
 #marginalia-selection-button {
   position: absolute;
   z-index: 2147483647;
-  background: #a6742e;
-  color: #16211c;
+  background: var(--accent);
+  color: var(--ink);
   border: none;
   border-radius: 999px;
   padding: 6px 12px;

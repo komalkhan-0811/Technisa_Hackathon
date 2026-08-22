@@ -10,9 +10,9 @@
   border: none;
   background: transparent;
   color: var(--accent);
-  font-size: 14px;
+  font-size: 20px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 6px;
   line-height: 1;
   opacity: 0.85;
 }
@@ -49,7 +49,7 @@
 }
 
 .stat-cell {
-  background: #ebe7d4;
+  background: var(--paper-muted);
   padding: 12px 14px;
 }
 

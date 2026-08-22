@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="cards/card-onboarding.css" />
     <link rel="stylesheet" href="cards/card-dashboard.css" />
     <link rel="stylesheet" href="cards/card-quiz.css" />
+    <link rel="stylesheet" href="cards/card-settings.css" />
   </head>
   <body>
     <div id="app">
@@ -129,6 +130,64 @@
         </div>
       </section>
 
+      <!-- Settings: theme picker, reachable from Card 2's gear icon -->
+      <section
+        id="card-settings"
+        class="card"
+        data-test-label="Settings"
+        aria-label="Settings"
+      >
+        <div class="card-chrome">
+          <header class="card-header">
+            <div class="brand">
+              <span class="brand-icon" aria-hidden="true">📖</span>
+              <span class="brand-name">Marginalia</span>
+            </div>
+            <button
+              id="btn-settings-back"
+              type="button"
+              class="icon-btn"
+              title="Back"
+              aria-label="Back"
+            >
+              ←
+            </button>
+          </header>
+
+          <div class="card-body settings-body">
+            <h2 class="headline-serif settings-headline">Pick theme</h2>
+
+            <div id="theme-swatches" class="theme-swatches">
+              <button type="button" class="theme-swatch" data-theme="botanic">
+                <span class="theme-swatch-color" aria-hidden="true"></span>
+                <span class="theme-swatch-label">Botanic Press</span>
+              </button>
+              <button type="button" class="theme-swatch" data-theme="midnight">
+                <span class="theme-swatch-color" aria-hidden="true"></span>
+                <span class="theme-swatch-label">Midnight Folio</span>
+              </button>
+              <button type="button" class="theme-swatch" data-theme="fieldstone">
+                <span class="theme-swatch-color" aria-hidden="true"></span>
+                <span class="theme-swatch-label">Fieldstone</span>
+              </button>
+            </div>
+
+            <div id="mode-toggle" class="mode-toggle" role="group" aria-label="Light or dark mode">
+              <button type="button" class="mode-toggle-option" data-mode="light">
+                Light mode
+              </button>
+              <button type="button" class="mode-toggle-option" data-mode="dark">
+                Dark mode
+              </button>
+            </div>
+
+            <button id="btn-reset-onboarding" type="button" class="btn-link">
+              Reset onboarding
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- Card 6: Quiz -->
       <section
         id="card-quiz"
@@ -233,10 +292,12 @@
       </section>
     </div>
 
+    <script src="../shared/themes.js"></script>
     <script src="shared.js"></script>
     <script src="cards/card-onboarding.js"></script>
     <script src="cards/card-dashboard.js"></script>
     <script src="cards/card-quiz.js"></script>
+    <script src="cards/card-settings.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

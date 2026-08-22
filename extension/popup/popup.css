@@ -1,13 +1,19 @@
 /* Shared popup styles — palette, layout, chrome, buttons */
 
 :root {
+  /* Fallback defaults (Botanic Press, dark) for the instant before JS runs
+     initTheme() -- applyTheme() (shared/themes.js) overrides these five via
+     an inline style on this element as soon as the stored theme loads. */
   --ink: #16211c;
   --paper: #e4e0c8;
   --accent: #a6742e;
   --alert: #7c3b3b;
   --success: #4c6b4f;
-  --paper-muted: #d8d4bc;
-  --ink-soft: rgba(22, 33, 28, 0.65);
+  /* Derived from the five base tokens above via color-mix(), so they stay
+     correct across all 3 themes x 2 modes without needing their own
+     per-theme values. */
+  --paper-muted: color-mix(in srgb, var(--paper), var(--ink) 8%);
+  --ink-soft: color-mix(in srgb, var(--ink), transparent 35%);
   --bookmark: #6b2d3c;
   --radius: 10px;
   --radius-sm: 6px;

@@ -9,6 +9,7 @@ const MIN_ARTICLE_WORDS = 300; // below this, don't even offer to track
 const SAMPLE_BADGE_COUNT = 3; // test-mode-only stand-in for a real skim count
 
 function boot() {
+  initTheme(); // apply the stored theme to this page + stay in sync with popup changes
   initSelectionButton(); // Card 5 -- always on, not gated by opt-in
 
   if (TEST_SHOW_ALL_CARDS) {

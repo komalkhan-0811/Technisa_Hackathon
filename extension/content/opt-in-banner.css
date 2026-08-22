@@ -6,9 +6,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #16211c;
-  color: #e4e0c8;
-  border: 1px solid #a6742e;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 10px 14px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -30,14 +30,14 @@
 }
 
 #marginalia-optin-banner .marginalia-optin-enable {
-  background: #a6742e;
-  color: #16211c;
+  background: var(--accent);
+  color: var(--ink);
   font-weight: 600;
 }
 
 #marginalia-optin-banner .marginalia-optin-dismiss {
   background: transparent;
-  color: #e4e0c8;
+  color: var(--paper);
   opacity: 0.7;
 }
 

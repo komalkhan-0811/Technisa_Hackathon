@@ -19,6 +19,7 @@ const MarginaliaPopup = {
     onboarding: document.getElementById("card-onboarding"),
     dashboard: document.getElementById("card-dashboard"),
     quiz: document.getElementById("card-quiz"),
+    settings: document.getElementById("card-settings"),
   },
 
   state: {
