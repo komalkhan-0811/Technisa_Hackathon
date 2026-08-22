@@ -42,6 +42,22 @@ function log(...args) {
   if (DEBUG) console.log("[skim-detection]", ...args);
 }
 
+// Fire-and-forget wrapper around chrome.runtime.sendMessage. If the
+// extension is reloaded (chrome://extensions, or an auto-reload during
+// dev) while this tab was already open, this content script keeps running
+// as an orphaned instance -- IntersectionObserver callbacks etc. still
+// fire -- but chrome.runtime is torn down, so sendMessage throws
+// "Extension context invalidated" synchronously. That's expected in that
+// situation (the fix is refreshing the tab, not code), not a real failure,
+// so it shouldn't surface as an uncaught error.
+function safeSendMessage(message) {
+  try {
+    chrome.runtime.sendMessage(message);
+  } catch (err) {
+    log("sendMessage failed (extension likely reloaded; refresh this tab):", err.message);
+  }
+}
+
 // --- State -------------------------------------------------------------
 
 const skimmedSections = new Map(); // sectionId -> { id, text, wordCount }
@@ -135,6 +151,7 @@ function observeSections(sections) {
               id: state.id,
               text: state.text,
               wordCount: state.wordCount,
+              flaggedAt: Date.now(), // lets the popup throttle a burst of flags for display
             });
           } else {
             skimmedSections.delete(state.id);
@@ -147,8 +164,8 @@ function observeSections(sections) {
             )}ms prominent, ${state.wordCount} words)`
           );
           // Card 4: push the current count so background.js can reflect it
-          // on the toolbar badge. Fire-and-forget -- no response expected.
-          chrome.runtime.sendMessage({
+          // on the toolbar badge.
+          safeSendMessage({
             type: "SKIM_COUNT_UPDATED",
             count: skimmedSections.size,
           });
@@ -190,16 +207,25 @@ function startTracking(articleText) {
 // estimate across every section that's actually been seen so far (not just
 // the skimmed ones), so it reflects real reading pace rather than only the
 // bad parts.
+const MAX_REALISTIC_WPM = 600; // well above typical adult reading speed but
+// still human -- scroll-based dwell time is an imprecise proxy for actual
+// reading pace, so this caps the display rather than trusting the raw math
+// for edge cases (e.g. a section that's on-screen just long enough to clear
+// the skim threshold, which alone can still compute to several thousand wpm).
+
 function getReadingStats() {
   let totalWords = 0;
   let totalMs = 0;
   sectionState.forEach((state) => {
-    if (!state.visited) return;
+    // Skimmed sections are low-dwell-time-per-word by definition, which
+    // skews any aggregate wildly upward -- excluding them keeps this a
+    // measure of actual reading pace, not skimming pace.
+    if (!state.visited || evaluateSkim(state)) return;
     totalWords += state.wordCount;
     totalMs += state.totalVisibleMs;
   });
-  const wpm = totalMs > 0 ? totalWords / (totalMs / 60000) : 0;
-  return { wpm };
+  const rawWpm = totalMs > 0 ? totalWords / (totalMs / 60000) : 0;
+  return { wpm: Math.min(rawWpm, MAX_REALISTIC_WPM) };
 }
 
 // --- FR5: Highlight-on-wrong-answer ---------------------------------------

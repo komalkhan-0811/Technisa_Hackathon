@@ -1,13 +1,24 @@
 /* Shared popup styles — palette, layout, chrome, buttons */
 
 :root {
+  /* Fallback defaults (Botanic Press, dark) for the instant before JS runs
+     initTheme() -- applyTheme() (shared/themes.js) overrides these five via
+     an inline style on this element as soon as the stored theme loads. */
   --ink: #16211c;
   --paper: #e4e0c8;
   --accent: #a6742e;
   --alert: #7c3b3b;
   --success: #4c6b4f;
-  --paper-muted: #d8d4bc;
-  --ink-soft: rgba(22, 33, 28, 0.65);
+  /* Dark mode (the default here): the card surface is the dark "ink" tone
+     with light "paper" text -- see applyTheme()'s comment in
+     shared/themes.js for why this isn't just --paper/--ink directly. */
+  --surface: #16211c;
+  --on-surface: #e4e0c8;
+  /* Derived from --surface/--on-surface via color-mix(), so they stay
+     correct across all 3 themes x 2 modes x light/dark without needing
+     their own per-variation values. */
+  --paper-muted: color-mix(in srgb, var(--surface), var(--on-surface) 18%);
+  --ink-soft: color-mix(in srgb, var(--on-surface), transparent 35%);
   --bookmark: #6b2d3c;
   --radius: 10px;
   --radius-sm: 6px;
@@ -19,12 +30,35 @@
   box-sizing: border-box;
 }
 
+/* applyTheme() (shared/themes.js) sets --surface/--on-surface on this same
+   element (document.documentElement), but nothing told <html> itself to
+   use them -- its default background stayed browser-white, showing
+   through as a sharp rectangle around the rounded card whenever the
+   actual popup window is even slightly larger than body's content box. */
+html {
+  margin: 0;
+  background: var(--surface);
+}
+
 body {
   margin: 0;
   width: 360px;
   min-height: 420px;
-  background: var(--ink);
-  color: var(--ink);
+  /* Caps how large the popup window can ever grow to (Chrome extension
+     popups auto-size to content, and there's a documented Chrome quirk
+     where the window can get stuck at a larger size it was shown at
+     earlier in the session -- e.g. the settings panel, or a long
+     flagged-sections list -- and not reliably shrink back down).
+     Overflow scrolls inside this bound instead of growing the window
+     further. */
+  max-height: 600px;
+  overflow-y: auto;
+  /* Was hardcoded to --ink -- matched the card in dark mode by
+     coincidence (surface = ink there too) but left a mismatched dark
+     frame around the card in light mode. --surface always matches
+     whatever the card itself is showing, in every mode. */
+  background: var(--surface);
+  color: var(--on-surface);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   line-height: 1.45;
@@ -55,7 +89,7 @@ body {
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--paper);
+  color: var(--on-surface);
   opacity: 0.75;
 }
 
@@ -67,7 +101,8 @@ body:has(#app.test-all-visible) {
 
 .card-chrome {
   position: relative;
-  background: var(--paper);
+  background: var(--surface);
+  color: var(--on-surface);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
@@ -96,7 +131,7 @@ body:has(#app.test-all-visible) {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: var(--on-surface);
 }
 
 .bookmark {
@@ -118,7 +153,7 @@ body:has(#app.test-all-visible) {
   font-style: italic;
   line-height: 1.15;
   margin: 0 0 12px;
-  color: var(--ink);
+  color: var(--on-surface);
 }
 
 .body-copy {

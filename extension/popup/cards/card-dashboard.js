@@ -15,11 +15,9 @@ const CardDashboard = {
 
   init() {
     this.els.checkBtn.addEventListener("click", () => this.handleCheckUnderstanding());
-    this.els.settings.addEventListener("click", () => {
-      chrome.storage.local.remove(MarginaliaPopup.STORAGE.onboarded).then(() => {
-        CardOnboarding.show();
-      });
-    });
+    // Opens the theme picker (CardSettings); "reset onboarding" moved there
+    // as a link rather than being this button's whole job.
+    this.els.settings.addEventListener("click", () => CardSettings.show());
   },
 
   async load() {
@@ -63,7 +61,8 @@ const CardDashboard = {
       this.els.flaggedEmpty.classList.remove("hidden");
     } else {
       this.els.flaggedEmpty.classList.add("hidden");
-      skimmedSections.forEach((section, index) => {
+      const displaySections = MarginaliaPopup.throttleFlaggedSections(skimmedSections);
+      displaySections.forEach((section, index) => {
         const li = document.createElement("li");
         li.className = "flagged-item";
         li.innerHTML = `<span>${MarginaliaPopup.sectionLabel(section, index)}</span><span class="flagged-item-arrow" aria-hidden="true">→</span>`;

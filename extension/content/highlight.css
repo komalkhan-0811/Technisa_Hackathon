@@ -1,6 +1,6 @@
 mark.marginalia-highlight {
-  background: #a6742e;
-  color: #16211c;
+  background: var(--accent);
+  color: var(--ink);
   padding: 0 2px;
   border-radius: 3px;
   animation: marginalia-highlight-pulse 1.6s ease-in-out 2;
@@ -9,9 +9,9 @@ mark.marginalia-highlight {
 @keyframes marginalia-highlight-pulse {
   0%,
   100% {
-    background: #a6742e;
+    background: var(--accent);
   }
   50% {
-    background: #e4c98f;
+    background: color-mix(in srgb, var(--accent), white 30%);
   }
 }

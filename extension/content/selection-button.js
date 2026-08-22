@@ -36,7 +36,7 @@ function showSelectionButton(rect, text) {
   button.addEventListener("mousedown", (event) => event.preventDefault());
 
   button.addEventListener("click", () => {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: "MANUAL_QUIZ_REQUEST",
       text: currentSelectionText,
     });

@@ -1,9 +1,12 @@
 // Popup entry point — wires cards and handles startup routing (Option A).
 
 async function init() {
+  initTheme(); // apply the stored theme + stay in sync with changes made elsewhere
+
   CardOnboarding.init();
   CardDashboard.init();
   CardQuiz.init();
+  CardSettings.init();
 
   if (MarginaliaPopup.TEST_SHOW_ALL_CARDS) {
     MarginaliaPopup.showAllCardsForTesting();
