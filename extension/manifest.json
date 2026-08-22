@@ -22,7 +22,11 @@
         "content/selection-button.js",
         "content/init.js"
       ],
-      "css": ["content/opt-in-banner.css", "content/selection-button.css"],
+      "css": [
+        "content/opt-in-banner.css",
+        "content/selection-button.css",
+        "content/highlight.css"
+      ],
       "run_at": "document_idle"
     }
   ],

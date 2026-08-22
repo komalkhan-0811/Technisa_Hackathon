@@ -2,7 +2,7 @@
 
 const MarginaliaPopup = {
   // Set to false before shipping — shows all popup cards stacked for visual QA.
-  TEST_SHOW_ALL_CARDS: true,
+  TEST_SHOW_ALL_CARDS: false,
 
   STORAGE: {
     onboarded: "onboarded",
@@ -56,13 +56,19 @@ const MarginaliaPopup = {
     });
   },
 
+  // chrome.storage.local, not .session -- verified live that a value
+  // background.js writes to storage.session is unreadable from this popup
+  // page (even after explicitly widening its access level), while
+  // storage.local round-trips correctly. The longer persistence isn't a
+  // real concern since this key is always cleared immediately after being
+  // read (here, and again as a safety net in CardQuiz.finish()).
   async getPendingManualQuiz() {
-    const data = await chrome.storage.session.get(this.SESSION.pendingManualQuiz);
+    const data = await chrome.storage.local.get(this.SESSION.pendingManualQuiz);
     return data[this.SESSION.pendingManualQuiz] || null;
   },
 
   async clearPendingManualQuiz() {
-    await chrome.storage.session.remove(this.SESSION.pendingManualQuiz);
+    await chrome.storage.local.remove(this.SESSION.pendingManualQuiz);
   },
 
   async getQuizStats() {

@@ -26,7 +26,7 @@ const DEBUG = true;
 // (injected page DOM, the toolbar badge, a selection-anchored element) --
 // but each card file checks this same flag to force itself visible with
 // sample data. See opt-in-banner.js, init.js, and selection-button.js.
-const TEST_SHOW_ALL_CARDS = true;
+const TEST_SHOW_ALL_CARDS = false;
 
 const MIN_SECTION_WORDS = 8; // ignore trivial fragments (nav links, captions)
 const MS_PER_100_WORDS = 1500; // min visible time to NOT count as skimmed
@@ -46,6 +46,7 @@ function log(...args) {
 
 const skimmedSections = new Map(); // sectionId -> { id, text, wordCount }
 const sectionState = new Map(); // element -> tracking state (see observeSections)
+let trackingStarted = false; // guards against double-starting (banner Enable + Card 1's "Enable on this site")
 
 function countWords(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -174,19 +175,124 @@ function observeSections(sections) {
   return observer;
 }
 
-// Called by opt-in-banner.js once the user clicks "Enable" (Card 3). Takes
-// the already-extracted article text so it isn't parsed twice.
+// Called by opt-in-banner.js's "Enable" click (Card 3) or the
+// ENABLE_TRACKING_ON_SITE message from Card 1's "Enable on this site" link.
+// Takes the already-extracted article text so it isn't parsed twice.
 function startTracking(articleText) {
+  if (trackingStarted) return;
+  trackingStarted = true;
   const sections = getSections(articleText);
   log(`tracking ${sections.length} section(s)`);
   observeSections(sections);
 }
 
-// --- TODO: FR5 Highlight-on-wrong-answer ---------------------------------
-// function highlightExcerpt(sourceExcerpt) {
-//   locate sourceExcerpt in the DOM via Range/Selection API,
-//   scrollIntoView, wrap in a <mark> with a highlight class.
-// }
+// Card 2's dashboard "Velocity" stat: an aggregate words-per-minute
+// estimate across every section that's actually been seen so far (not just
+// the skimmed ones), so it reflects real reading pace rather than only the
+// bad parts.
+function getReadingStats() {
+  let totalWords = 0;
+  let totalMs = 0;
+  sectionState.forEach((state) => {
+    if (!state.visited) return;
+    totalWords += state.wordCount;
+    totalMs += state.totalVisibleMs;
+  });
+  const wpm = totalMs > 0 ? totalWords / (totalMs / 60000) : 0;
+  return { wpm };
+}
+
+// --- FR5: Highlight-on-wrong-answer ---------------------------------------
+// source_excerpt is guaranteed by the backend to be an exact (or very
+// nearly exact -- see findExcerptRange's whitespace-tolerant fallback)
+// substring of whatever text was sent to /generate-quiz. That text always
+// came from one or more whole page elements (skimmed <p>/heading sections,
+// or a manual selection), so searching element-by-element for a containing
+// match -- rather than building a single flattened-document text index --
+// is enough, and lets us highlight a precise sub-range via a DOM Range
+// instead of just the whole containing element.
+
+function findExcerptRange(rawText, excerpt) {
+  const exactIndex = rawText.indexOf(excerpt);
+  if (exactIndex !== -1) {
+    return { start: exactIndex, end: exactIndex + excerpt.length };
+  }
+  // Whitespace-tolerant fallback: collapse whitespace runs in the excerpt
+  // into \s+ so minor formatting drift (a newline in the DOM vs. a space in
+  // the normalized text used for matching) doesn't prevent a highlight.
+  const escaped = excerpt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = escaped.replace(/\s+/g, "\\s+");
+  const match = rawText.match(new RegExp(pattern, "i"));
+  return match ? { start: match.index, end: match.index + match[0].length } : null;
+}
+
+function highlightRangeInElement(element, startIndex, endIndex) {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  let startNode, startOffset, endNode, endOffset;
+
+  let node;
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length;
+    if (startNode == null && offset + len > startIndex) {
+      startNode = node;
+      startOffset = startIndex - offset;
+    }
+    if (startNode != null && offset + len >= endIndex) {
+      endNode = node;
+      endOffset = endIndex - offset;
+      break;
+    }
+    offset += len;
+  }
+  if (!startNode || !endNode) return false;
+
+  const range = document.createRange();
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
+
+  const mark = document.createElement("mark");
+  mark.className = "marginalia-highlight";
+  try {
+    // surroundContents() throws whenever the range spans multiple sibling
+    // elements (e.g. Wikipedia bolds the article's title phrase in its
+    // lead sentence, so a real excerpt commonly crosses several <b>
+    // boundaries) -- extractContents()+insertNode() handles arbitrary
+    // multi-node ranges correctly, unlike surroundContents' single-node-only
+    // convenience wrapping.
+    mark.appendChild(range.extractContents());
+    range.insertNode(mark);
+  } catch (err) {
+    return false;
+  }
+
+  mark.scrollIntoView({ behavior: "smooth", block: "center" });
+  return true;
+}
+
+function highlightExcerpt(sourceExcerpt) {
+  if (!sourceExcerpt) return false;
+  const normalizedExcerpt = normalizeWhitespace(sourceExcerpt);
+
+  // Smallest elements first, so a specific inline element (e.g. a <span>
+  // or <li>) wins over a large wrapping container that merely happens to
+  // contain the same text further down.
+  const candidates = Array.from(
+    document.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote, a")
+  ).sort((a, b) => a.textContent.length - b.textContent.length);
+
+  for (const el of candidates) {
+    if (!normalizeWhitespace(el.textContent).includes(normalizedExcerpt)) continue;
+
+    const range = findExcerptRange(el.textContent, sourceExcerpt);
+    if (range && highlightRangeInElement(el, range.start, range.end)) {
+      return true;
+    }
+  }
+
+  log("could not locate source excerpt on page:", sourceExcerpt);
+  return false;
+}
 
 // --- Messaging -----------------------------------------------------------
 
@@ -195,9 +301,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "GET_SKIMMED_SECTIONS":
       sendResponse({ sections: Array.from(skimmedSections.values()) });
       break;
+    case "GET_READING_STATS":
+      sendResponse(getReadingStats());
+      break;
+    case "ENABLE_TRACKING_ON_SITE": {
+      const articleText = extractArticleText();
+      startTracking(articleText);
+      sendResponse({ ok: true });
+      break;
+    }
     case "HIGHLIGHT_EXCERPT":
-      // TODO: call highlightExcerpt(message.sourceExcerpt)
-      sendResponse({ ok: false, error: "not implemented" });
+      sendResponse({ ok: highlightExcerpt(message.sourceExcerpt) });
       break;
     default:
       break;
