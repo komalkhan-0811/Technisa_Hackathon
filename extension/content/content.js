@@ -8,6 +8,11 @@
 //      sections (or the user's current manual selection).
 //   4. On an incorrect quiz answer, locate `source_excerpt` in the page via
 //      the DOM Range/Selection API, scroll it into view, and highlight it.
+//
+// This file only defines the tracking engine -- it does not decide when to
+// start. That decision (opt-in gating) lives in opt-in-banner.js, and the
+// actual kickoff happens in init.js, which loads last so every other
+// content-script file's functions are guaranteed to already be defined.
 
 // --- Config (tune during build/testing) ----------------------------------
 
@@ -130,6 +135,12 @@ function observeSections(sections) {
               state.prominentMs
             )}ms prominent, ${state.wordCount} words)`
           );
+          // Card 4: push the current count so background.js can reflect it
+          // on the toolbar badge. Fire-and-forget -- no response expected.
+          chrome.runtime.sendMessage({
+            type: "SKIM_COUNT_UPDATED",
+            count: skimmedSections.size,
+          });
         }
       });
     },
@@ -153,17 +164,12 @@ function observeSections(sections) {
   return observer;
 }
 
-function initSkimTracking() {
-  const articleText = extractArticleText();
+// Called by opt-in-banner.js once the user clicks "Enable" (Card 3). Takes
+// the already-extracted article text so it isn't parsed twice.
+function startTracking(articleText) {
   const sections = getSections(articleText);
-  log(`tracking ${sections.length} section(s)`, { articleTextFound: !!articleText });
+  log(`tracking ${sections.length} section(s)`);
   observeSections(sections);
-}
-
-if (document.readyState === "complete") {
-  initSkimTracking();
-} else {
-  window.addEventListener("load", initSkimTracking);
 }
 
 // --- TODO: FR5 Highlight-on-wrong-answer ---------------------------------
@@ -172,19 +178,12 @@ if (document.readyState === "complete") {
 //   scrollIntoView, wrap in a <mark> with a highlight class.
 // }
 
-// --- TODO: FR6 Manual highlight-and-quiz-me -------------------------------
-// Listen for text selection (selectionchange) or a context menu item to
-// grab window.getSelection().toString() and send it through the same flow.
-
 // --- Messaging -----------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
     case "GET_SKIMMED_SECTIONS":
       sendResponse({ sections: Array.from(skimmedSections.values()) });
-      break;
-    case "GET_SELECTION":
-      sendResponse({ text: window.getSelection().toString() });
       break;
     case "HIGHLIGHT_EXCERPT":
       // TODO: call highlightExcerpt(message.sourceExcerpt)
