@@ -42,6 +42,22 @@ function log(...args) {
   if (DEBUG) console.log("[skim-detection]", ...args);
 }
 
+// Fire-and-forget wrapper around chrome.runtime.sendMessage. If the
+// extension is reloaded (chrome://extensions, or an auto-reload during
+// dev) while this tab was already open, this content script keeps running
+// as an orphaned instance -- IntersectionObserver callbacks etc. still
+// fire -- but chrome.runtime is torn down, so sendMessage throws
+// "Extension context invalidated" synchronously. That's expected in that
+// situation (the fix is refreshing the tab, not code), not a real failure,
+// so it shouldn't surface as an uncaught error.
+function safeSendMessage(message) {
+  try {
+    chrome.runtime.sendMessage(message);
+  } catch (err) {
+    log("sendMessage failed (extension likely reloaded; refresh this tab):", err.message);
+  }
+}
+
 // --- State -------------------------------------------------------------
 
 const skimmedSections = new Map(); // sectionId -> { id, text, wordCount }
@@ -147,8 +163,8 @@ function observeSections(sections) {
             )}ms prominent, ${state.wordCount} words)`
           );
           // Card 4: push the current count so background.js can reflect it
-          // on the toolbar badge. Fire-and-forget -- no response expected.
-          chrome.runtime.sendMessage({
+          // on the toolbar badge.
+          safeSendMessage({
             type: "SKIM_COUNT_UPDATED",
             count: skimmedSections.size,
           });
