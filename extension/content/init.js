@@ -6,9 +6,21 @@
 // hasn't loaded yet.
 
 const MIN_ARTICLE_WORDS = 300; // below this, don't even offer to track
+const SAMPLE_BADGE_COUNT = 3; // test-mode-only stand-in for a real skim count
 
 function boot() {
   initSelectionButton(); // Card 5 -- always on, not gated by opt-in
+
+  if (TEST_SHOW_ALL_CARDS) {
+    log("TEST_SHOW_ALL_CARDS on: forcing Card 3 + Card 4 visible with sample data");
+    showOptInBanner("Sample article text for test mode."); // Card 3, gate bypassed
+    chrome.runtime.sendMessage({
+      type: "SKIM_COUNT_UPDATED",
+      count: SAMPLE_BADGE_COUNT,
+    }); // Card 4
+    showSelectionButtonSample(); // Card 5, no real selection needed
+    return;
+  }
 
   const articleText = extractArticleText();
   const wordCount = articleText ? countWords(articleText) : 0;

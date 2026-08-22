@@ -18,6 +18,16 @@
 
 const DEBUG = true;
 
+// Matches the flag name used in popup/shared.js (Cards 1, 2, 6) for a
+// consistent mental model across the extension: flip it, reload, see every
+// card's UI without needing to naturally trigger it. The mechanism differs
+// per surface -- there's no single page to stack sections on here like the
+// popup has, since these three cards render into three different places
+// (injected page DOM, the toolbar badge, a selection-anchored element) --
+// but each card file checks this same flag to force itself visible with
+// sample data. See opt-in-banner.js, init.js, and selection-button.js.
+const TEST_SHOW_ALL_CARDS = true;
+
 const MIN_SECTION_WORDS = 8; // ignore trivial fragments (nav links, captions)
 const MS_PER_100_WORDS = 1500; // min visible time to NOT count as skimmed
 const PROMINENCE_RATIO = 0.5; // fraction of the section that must be visible...

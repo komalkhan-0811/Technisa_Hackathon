@@ -27,7 +27,9 @@ function showSelectionButton(rect, text) {
   const button = document.createElement("button");
   button.id = SELECTION_BUTTON_ID;
   button.type = "button";
-  button.textContent = "\u{1F516} Quiz me on this";
+  button.textContent = TEST_SHOW_ALL_CARDS
+    ? "\u{1F516} Quiz me on this (Card 5 -- test mode)"
+    : "\u{1F516} Quiz me on this";
 
   // Without this, mousedown on the button collapses the browser selection
   // (focus moves to the button) before the click handler can read it.
@@ -43,6 +45,16 @@ function showSelectionButton(rect, text) {
 
   document.body.appendChild(button);
   positionSelectionButton(button, rect);
+}
+
+// TEST_SHOW_ALL_CARDS only: force the button visible without a real
+// selection to anchor to, positioned near the top of the viewport with
+// placeholder text so its design can be reviewed on demand.
+function showSelectionButtonSample() {
+  // Viewport-relative, matching what a real getBoundingClientRect() would
+  // return -- positionSelectionButton() adds the scroll offset itself.
+  const fakeRect = { top: 80, left: 24 };
+  showSelectionButton(fakeRect, "Sample selected text for test mode.");
 }
 
 function initSelectionButton() {

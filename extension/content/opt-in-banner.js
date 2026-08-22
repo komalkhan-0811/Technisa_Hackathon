@@ -13,9 +13,10 @@ function showOptInBanner(articleText) {
 
   const banner = document.createElement("div");
   banner.id = OPT_IN_BANNER_ID;
+  const label = TEST_SHOW_ALL_CARDS ? " (Card 3 -- test mode)" : "";
   banner.innerHTML = `
     <span class="marginalia-optin-icon">\u{1F516}</span>
-    <span class="marginalia-optin-text">Track your reading on this page?</span>
+    <span class="marginalia-optin-text">Track your reading on this page?${label}</span>
     <button type="button" class="marginalia-optin-enable">Enable</button>
     <button type="button" class="marginalia-optin-dismiss">Not now</button>
   `;
