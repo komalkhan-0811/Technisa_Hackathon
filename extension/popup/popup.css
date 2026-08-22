@@ -44,6 +44,15 @@ body {
   margin: 0;
   width: 360px;
   min-height: 420px;
+  /* Caps how large the popup window can ever grow to (Chrome extension
+     popups auto-size to content, and there's a documented Chrome quirk
+     where the window can get stuck at a larger size it was shown at
+     earlier in the session -- e.g. the settings panel, or a long
+     flagged-sections list -- and not reliably shrink back down).
+     Overflow scrolls inside this bound instead of growing the window
+     further. */
+  max-height: 600px;
+  overflow-y: auto;
   /* Was hardcoded to --ink -- matched the card in dark mode by
      coincidence (surface = ink there too) but left a mismatched dark
      frame around the card in light mode. --surface always matches
