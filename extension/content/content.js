@@ -17,6 +17,11 @@ const MIN_SECTION_WORDS = 8; // ignore trivial fragments (nav links, captions)
 const MS_PER_100_WORDS = 1500; // min visible time to NOT count as skimmed
 const PROMINENCE_RATIO = 0.5; // fraction of the section that must be visible...
 const PROMINENCE_MIN_MS = 400; // ...for at least this long to count as "seen"
+const MAX_INTERVAL_MS = 1000; // cap on dwell credited between two observer
+// events -- without this, a paused/idle gap (no scrolling, e.g. the user
+// alt-tabbing or reading devtools) gets fully counted as dwell time, since
+// IntersectionObserver only fires when the ratio actually changes and can't
+// tell "still reading" apart from "stopped scrolling for an unrelated reason".
 
 function log(...args) {
   if (DEBUG) console.log("[skim-detection]", ...args);
@@ -94,7 +99,7 @@ function observeSections(sections) {
         // Close out the interval since the last observed ratio before
         // applying the new one.
         if (state.lastTimestamp != null) {
-          const elapsed = now - state.lastTimestamp;
+          const elapsed = Math.min(now - state.lastTimestamp, MAX_INTERVAL_MS);
           if (state.currentRatio > 0) state.totalVisibleMs += elapsed;
           if (state.currentRatio >= PROMINENCE_RATIO) {
             state.prominentMs += elapsed;
