@@ -1,0 +1,17 @@
+mark.marginalia-highlight {
+  background: #a6742e;
+  color: #16211c;
+  padding: 0 2px;
+  border-radius: 3px;
+  animation: marginalia-highlight-pulse 1.6s ease-in-out 2;
+}
+
+@keyframes marginalia-highlight-pulse {
+  0%,
+  100% {
+    background: #a6742e;
+  }
+  50% {
+    background: #e4c98f;
+  }
+}
