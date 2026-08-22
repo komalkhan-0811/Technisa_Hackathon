@@ -1,20 +1,242 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Are You Actually Reading?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marginalia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="cards/card-onboarding.css" />
+    <link rel="stylesheet" href="cards/card-dashboard.css" />
+    <link rel="stylesheet" href="cards/card-quiz.css" />
   </head>
   <body>
-    <h1>Are You Actually Reading?</h1>
+    <div id="app">
+      <!-- Card 1: First-time onboarding -->
+      <section
+        id="card-onboarding"
+        class="card"
+        data-test-label="Card 1 — Onboarding"
+        aria-label="Welcome"
+      >
+        <div class="card-chrome">
+          <header class="card-header">
+            <div class="brand">
+              <span class="brand-icon" aria-hidden="true">📖</span>
+              <span class="brand-name">Marginalia</span>
+            </div>
+            <div class="bookmark" aria-hidden="true"></div>
+          </header>
 
-    <button id="check-understanding-btn" disabled>
-      Check my understanding
-    </button>
-    <p id="status-text" class="status"></p>
+          <div class="card-body onboarding-body">
+            <h1 class="headline-serif">Reading, noticed.</h1>
+            <p class="body-copy">
+              We flag paragraphs you skim past, then check you actually caught
+              what mattered.
+            </p>
+            <button id="btn-got-it" type="button" class="btn btn-primary">
+              Got it
+            </button>
+            <button id="btn-enable-site" type="button" class="btn-link">
+              Enable on this site →
+            </button>
+          </div>
+        </div>
+      </section>
 
-    <div id="quiz-container" class="hidden"></div>
+      <!-- Card 2: Returning user dashboard -->
+      <section
+        id="card-dashboard"
+        class="card"
+        data-test-label="Card 2 — Dashboard"
+        aria-label="Reading status"
+      >
+        <div class="card-chrome">
+          <header class="card-header">
+            <div class="brand">
+              <span class="brand-icon" aria-hidden="true">📖</span>
+              <span class="brand-name">Marginalia</span>
+            </div>
+            <div class="header-actions">
+              <button
+                id="btn-settings"
+                type="button"
+                class="icon-btn"
+                title="Settings"
+                aria-label="Settings"
+              >
+                ⚙
+              </button>
+              <div class="bookmark" aria-hidden="true"></div>
+            </div>
+          </header>
 
+          <div class="card-body dashboard-body">
+            <p class="eyebrow">Reading now</p>
+            <h2 id="article-title" class="article-title">
+              The Fall of the Western Roman Empire
+            </h2>
+
+            <div class="stats-grid">
+              <div class="stat-cell">
+                <span class="stat-label">Velocity</span>
+                <span id="stat-velocity" class="stat-value">420 wpm</span>
+              </div>
+              <div class="stat-cell">
+                <span class="stat-label">Status</span>
+                <span id="stat-flagged" class="stat-value stat-flagged">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  <span id="flagged-count">2 flagged</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="flagged-section">
+              <p class="section-label">Flagged sections</p>
+              <ul id="flagged-list" class="flagged-list">
+                <li class="flagged-item">
+                  <span>Section 2 — skimmed in 1.4s</span>
+                  <span class="flagged-item-arrow" aria-hidden="true">→</span>
+                </li>
+                <li class="flagged-item">
+                  <span>Section 4 — skimmed in 0.9s</span>
+                  <span class="flagged-item-arrow" aria-hidden="true">→</span>
+                </li>
+              </ul>
+              <p id="flagged-empty" class="flagged-empty hidden">
+                No skimmed sections yet — keep reading.
+              </p>
+            </div>
+
+            <button
+              id="btn-check-understanding"
+              type="button"
+              class="btn btn-primary"
+            >
+              Check understanding
+            </button>
+
+            <footer class="dashboard-footer">
+              <span id="footer-focus">Focus 78%</span>
+              <span id="footer-passed">Passed 4/5</span>
+            </footer>
+          </div>
+        </div>
+      </section>
+
+      <!-- Card 6: Quiz -->
+      <section
+        id="card-quiz"
+        class="card"
+        data-test-label="Card 6 — Quiz"
+        aria-label="Quiz"
+      >
+        <div class="card-chrome card-chrome--quiz">
+          <header class="card-header">
+            <div class="brand">
+              <span class="brand-icon" aria-hidden="true">📖</span>
+              <span class="brand-name">Marginalia</span>
+            </div>
+            <span id="quiz-progress" class="quiz-progress">Question 2/5</span>
+          </header>
+
+          <div class="card-body quiz-body">
+            <div id="quiz-loading" class="quiz-loading hidden">
+              <p class="body-copy">Generating quiz…</p>
+            </div>
+
+            <div id="quiz-content" class="quiz-content">
+              <div id="quiz-badge" class="quiz-badge">
+                <span class="badge-dot" aria-hidden="true"></span>
+                <span id="quiz-badge-text">Section 3 skimmed</span>
+              </div>
+
+              <h2 id="quiz-headline" class="headline-serif quiz-headline">
+                Slow down &amp; verify
+              </h2>
+              <p id="quiz-meta" class="quiz-meta">1.8s vs. 12s estimated</p>
+
+              <p id="quiz-question" class="quiz-question">
+                Based on the text, why did the author consider the Visigoth
+                migration a &ldquo;turning point&rdquo; rather than an
+                &ldquo;ending&rdquo;?
+              </p>
+
+              <ul id="quiz-options" class="quiz-options" role="listbox">
+                <li>
+                  <button
+                    type="button"
+                    class="quiz-option quiz-option--selected quiz-option--locked"
+                    disabled
+                  >
+                    <span class="option-radio" aria-hidden="true"></span>
+                    <span
+                      >It signaled a shift in political power rather than
+                      immediate total collapse.</span
+                    >
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="quiz-option quiz-option--locked" disabled>
+                    <span class="option-radio" aria-hidden="true"></span>
+                    <span
+                      >The Visigoths were already integrated into the Roman
+                      military structure.</span
+                    >
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="quiz-option quiz-option--locked" disabled>
+                    <span class="option-radio" aria-hidden="true"></span>
+                    <span>It led to the immediate establishment of a new empire.</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="quiz-option quiz-option--locked" disabled>
+                    <span class="option-radio" aria-hidden="true"></span>
+                    <span>The Roman Senate remained powerful for centuries after.</span>
+                  </button>
+                </li>
+              </ul>
+
+              <div
+                id="quiz-feedback"
+                class="quiz-feedback quiz-feedback--correct"
+                role="status"
+              >
+                <p id="quiz-feedback-title" class="feedback-title">Correct</p>
+                <p id="quiz-feedback-body" class="feedback-body">
+                  Nice — moving on when you&rsquo;re ready.
+                </p>
+                <button
+                  id="btn-locate-source"
+                  type="button"
+                  class="btn btn-primary btn-locate hidden"
+                >
+                  Locate source paragraph
+                </button>
+              </div>
+
+              <button id="btn-quiz-next" type="button" class="btn btn-primary">
+                Next question
+              </button>
+            </div>
+
+            <p id="quiz-error" class="quiz-error hidden"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="cards/card-onboarding.js"></script>
+    <script src="cards/card-dashboard.js"></script>
+    <script src="cards/card-quiz.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
