@@ -30,6 +30,16 @@
   box-sizing: border-box;
 }
 
+/* applyTheme() (shared/themes.js) sets --surface/--on-surface on this same
+   element (document.documentElement), but nothing told <html> itself to
+   use them -- its default background stayed browser-white, showing
+   through as a sharp rectangle around the rounded card whenever the
+   actual popup window is even slightly larger than body's content box. */
+html {
+  margin: 0;
+  background: var(--surface);
+}
+
 body {
   margin: 0;
   width: 360px;
