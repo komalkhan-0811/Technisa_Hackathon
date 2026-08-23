@@ -65,18 +65,18 @@ const CardQuiz = {
     this.showLoading();
 
     const { skimmedSections } = ReadActuallyPopup.state;
-    const numQuestions = Math.min(
-      3,
-      Math.max(1, source === "manual" ? 2 : skimmedSections.length || 2)
-    );
-    //const numQuestions = 3;
-
+    const numQuestions =
+      source === "manual" ? 3 : Math.max(1, skimmedSections.length || sectionIndex);
     chrome.runtime.sendMessage(
-      { type: "GENERATE_QUIZ", text, numQuestions },
+      { type: "GENERATE_QUIZ", text, numQuestions, source },
       (result) => {
         if (!result?.ok) {
+          const errorMessage =
+            typeof result?.error === "string"
+              ? result.error
+              : result?.error?.detail || "Quiz generation failed. Is the backend running?";
           this.showError(
-            result?.error || "Quiz generation failed. Is the backend running?"
+            errorMessage
           );
           return;
         }

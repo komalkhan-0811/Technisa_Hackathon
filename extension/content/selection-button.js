@@ -62,6 +62,10 @@ function showSelectionButton(rect, text) {
   button.addEventListener("mousedown", (event) => event.preventDefault());
 
   button.addEventListener("click", () => {
+    if (isQuizModalOpen) {
+      removeSelectionButton();
+      return;
+    }
     const text = currentSelectionText.trim();
     if (text.length === 0) {
       showQuizOverlay(
@@ -117,7 +121,10 @@ function initSelectionButton() {
   removeSelectionButton();
 
   function updateSelectionButton() {
-    if (!selectionSiteReady || !selectionSiteEnabled) return;
+    if (!selectionSiteReady || !selectionSiteEnabled || isQuizModalOpen) {
+      removeSelectionButton();
+      return;
+    }
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : "";
 
@@ -193,10 +200,15 @@ async function initializeQuizOverlayTheme(host) {
 function removeQuizOverlay() {
   document.getElementById(QUIZ_OVERLAY_ID)?.remove();
   quizOverlayHost = null;
+  resetQuizModalState();
 }
 
-function showQuizOverlay(quizData, errorMessage, loading) {
+function showQuizOverlay(quizData, errorMessage, loading, source = "manual") {
+  if (isQuizModalOpen && activeQuizSource !== source) return;
   removeQuizOverlay();
+  isQuizModalOpen = true;
+  activeQuizSource = source;
+  updateSkimAlert(0);
 
   const host = document.createElement("div");
   host.id = QUIZ_OVERLAY_ID;

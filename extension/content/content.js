@@ -63,6 +63,20 @@ function safeSendMessage(message) {
 const skimmedSections = new Map(); // sectionId -> { id, text, wordCount }
 const sectionState = new Map(); // element -> tracking state (see observeSections)
 let trackingStarted = false; // guards against double-starting (banner Enable + Card 1's "Enable on this site")
+let isQuizModalOpen = false;
+let activeQuizSource = null;
+
+function clearTemporarySelectionHighlights() {
+  document.querySelectorAll("mark.read-actually-highlight").forEach((mark) => {
+    mark.replaceWith(...mark.childNodes);
+  });
+}
+
+function resetQuizModalState() {
+  isQuizModalOpen = false;
+  activeQuizSource = null;
+  clearTemporarySelectionHighlights();
+}
 
 function countWords(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -364,8 +378,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "HIGHLIGHT_EXCERPT":
       sendResponse({ ok: highlightExcerpt(message.sourceExcerpt) });
       break;
-    case "OPEN_QUIZ_MODAL":
-      showQuizOverlay(message.quizData, message.error, message.loading);
+    case "OPEN_MANUAL_QUIZ_MODAL":
+    case "OPEN_SKIM_QUIZ_MODAL":
+      showQuizOverlay(
+        message.quizData,
+        message.error,
+        message.loading,
+        message.source || (message.type === "OPEN_SKIM_QUIZ_MODAL" ? "skimmed" : "manual")
+      );
       sendResponse({ ok: true });
       break;
     default:

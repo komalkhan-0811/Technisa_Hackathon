@@ -52,7 +52,7 @@ app.add_middleware(
 
 class GenerateQuizRequest(BaseModel):
     text: str
-    num_questions: int = Field(default=3, ge=1, le=5)
+    num_questions: int = Field(default=3, ge=1)
 
 
 class QuizQuestion(BaseModel):

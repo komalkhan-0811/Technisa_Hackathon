@@ -8,7 +8,13 @@
 const BACKEND_URL = "http://localhost:8000";
 const BADGE_COLOR = "#a6742e";
 const CURRENT_QUIZ_KEY = "currentQuiz";
-const PENDING_MANUAL_QUIZ_KEY = "pendingManualQuiz";
+const MANUAL_QUIZ_QUESTION_COUNT = 3;
+
+function quizModalMessageType(source) {
+  return source === "skimmed"
+    ? "OPEN_SKIM_QUIZ_MODAL"
+    : "OPEN_MANUAL_QUIZ_MODAL";
+}
 
 function sendTabMessage(tabId, message) {
   return new Promise((resolve) => {
@@ -23,16 +29,19 @@ function sendTabMessage(tabId, message) {
   });
 }
 
-async function triggerManualQuiz(tabId, text, meta = {}) {
+async function triggerQuiz(tabId, text, meta = {}) {
   if (tabId == null || !text) return;
   const source = meta.source || "manual";
-  const count = meta.count || 3;
+  const count = source === "skimmed"
+    ? Math.max(1, Number(meta.count) || 1)
+    : MANUAL_QUIZ_QUESTION_COUNT;
   const trimmedText = text.trim();
 
   // 1. Length validation guardrails
   if (trimmedText.length < 100) {
     await sendTabMessage(tabId, {
-      type: "OPEN_QUIZ_MODAL",
+      type: quizModalMessageType(source),
+      source,
       error: "Selection is too short. Please highlight at least 100 characters (about 1-2 full sentences).",
     });
     return;
@@ -40,7 +49,8 @@ async function triggerManualQuiz(tabId, text, meta = {}) {
 
   if (trimmedText.length > 8000) {
     await sendTabMessage(tabId, {
-      type: "OPEN_QUIZ_MODAL",
+      type: quizModalMessageType(source),
+      source,
       error: "Selection is too long (over 8,000 characters). Please highlight a shorter section.",
     });
     return;
@@ -48,13 +58,17 @@ async function triggerManualQuiz(tabId, text, meta = {}) {
 
   try {
     // 2. Notify content script overlay to show loading state
-    await sendTabMessage(tabId, { type: "OPEN_QUIZ_MODAL", loading: true });
+    await sendTabMessage(tabId, {
+      type: quizModalMessageType(source),
+      source,
+      loading: true,
+    });
 
     // 3. Fetch quiz directly from backend
     const response = await fetch(`${BACKEND_URL}/generate-quiz`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: trimmedText, num_questions: count }),
+      body: JSON.stringify({ text: trimmedText, num_questions: count, source }),
     });
 
     if (!response.ok) {
@@ -75,7 +89,8 @@ async function triggerManualQuiz(tabId, text, meta = {}) {
 
     // 5. Send payload to overlay modal
     await sendTabMessage(tabId, {
-      type: "OPEN_QUIZ_MODAL",
+      type: quizModalMessageType(source),
+      source,
       loading: false,
       quizData,
     });
@@ -85,20 +100,12 @@ async function triggerManualQuiz(tabId, text, meta = {}) {
 
     // 6. Send error message to overlay
     await sendTabMessage(tabId, {
-      type: "OPEN_QUIZ_MODAL",
+      type: quizModalMessageType(source),
+      source,
       loading: false,
       error: errorMsg,
     });
 
-    // 7. Fallback: Save to storage so the teammate's extension popup can handle it
-    chrome.storage.local
-      .set({
-        [PENDING_MANUAL_QUIZ_KEY]: { text: trimmedText, tabId, source, count },
-      })
-      .then(() => chrome.action.openPopup())
-      .catch((storageErr) => {
-        console.warn("[background] triggerManualQuiz fallback failed:", storageErr);
-      });
   }
 }
 
@@ -112,7 +119,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "quiz-me-on-selection" && info.selectionText) {
-    triggerManualQuiz(tab?.id, info.selectionText);
+    triggerQuiz(tab?.id, info.selectionText, { source: "manual" });
   }
 });
 
@@ -123,7 +130,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: message.text?.trim(),
-        num_questions: message.numQuestions || 3,
+        num_questions:
+          message.source === "manual"
+            ? MANUAL_QUIZ_QUESTION_COUNT
+            : Math.max(1, Number(message.numQuestions) || 1),
+        source: message.source || "skimmed",
       }),
     })
       .then(async (res) => {
@@ -151,12 +162,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "MANUAL_QUIZ_REQUEST") {
-    triggerManualQuiz(sender.tab?.id, message.text);
+    triggerQuiz(sender.tab?.id, message.text, { source: "manual" });
     return false;
   }
 
   if (message.type === "SKIM_QUIZ_REQUEST") {
-    triggerManualQuiz(sender.tab?.id, message.text, {
+    triggerQuiz(sender.tab?.id, message.text, {
       source: "skimmed",
       count: message.count,
     });
