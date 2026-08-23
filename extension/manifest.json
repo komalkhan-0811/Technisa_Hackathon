@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Are You Actually Reading?",
+  "name": "Read Actually",
   "version": "0.1.0",
   "description": "Detects skimming on long-form pages and quizzes you on what you just skimmed.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
@@ -10,7 +10,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Are You Actually Reading?"
+    "default_title": "Read Actually"
   },
   "content_scripts": [
     {
@@ -19,6 +19,7 @@
         "shared/themes.js",
         "lib/Readability.js",
         "content/content.js",
+        "content/skim-alert.js",
         "content/opt-in-banner.js",
         "content/selection-button.js",
         "content/init.js"
@@ -26,7 +27,9 @@
       "css": [
         "content/opt-in-banner.css",
         "content/selection-button.css",
-        "content/highlight.css"
+        "content/highlight.css",
+        "content/skim-sticker.css",
+        "content/skim-alert.css"
       ],
       "run_at": "document_idle"
     }

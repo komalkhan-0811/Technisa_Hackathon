@@ -1,4 +1,4 @@
-#read-actually-optin-banner {
+#read-actually-skim-alert {
   position: fixed;
   bottom: 20px;
   right: 20px;
@@ -16,11 +16,11 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
-#read-actually-optin-banner .read-actually-optin-icon {
+#read-actually-skim-alert .read-actually-skim-alert-icon {
   font-size: 14px;
 }
 
-#read-actually-optin-banner button {
+#read-actually-skim-alert button {
   font-family: inherit;
   font-size: 12px;
   border: none;
@@ -29,18 +29,21 @@
   cursor: pointer;
 }
 
-#read-actually-optin-banner .read-actually-optin-enable {
+#read-actually-skim-alert .read-actually-skim-alert-quiz {
   background: var(--accent);
   color: var(--ink);
   font-weight: 600;
 }
 
-#read-actually-optin-banner .read-actually-optin-dismiss {
+#read-actually-skim-alert .read-actually-skim-alert-dismiss {
   background: transparent;
   color: var(--paper);
   opacity: 0.7;
+  padding: 6px 8px;
+  font-size: 15px;
+  line-height: 1;
 }
 
-#read-actually-optin-banner .read-actually-optin-dismiss:hover {
+#read-actually-skim-alert .read-actually-skim-alert-dismiss:hover {
   opacity: 1;
 }

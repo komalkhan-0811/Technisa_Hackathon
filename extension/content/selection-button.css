@@ -1,4 +1,4 @@
-#marginalia-selection-button {
+#read-actually-selection-button {
   position: absolute;
   z-index: 2147483647;
   background: var(--accent);
@@ -13,6 +13,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-#marginalia-selection-button:hover {
+#read-actually-selection-button:hover {
   filter: brightness(1.08);
 }

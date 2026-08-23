@@ -12,25 +12,25 @@ const CardOnboarding = {
   },
 
   show() {
-    MarginaliaPopup.showCard("onboarding");
+    ReadActuallyPopup.showCard("onboarding");
   },
 
   async handleGotIt() {
     await chrome.storage.local.set({
-      [MarginaliaPopup.STORAGE.onboarded]: true,
+      [ReadActuallyPopup.STORAGE.onboarded]: true,
     });
     await CardDashboard.load();
   },
 
   async handleEnableSite() {
-    const { activeTab } = MarginaliaPopup.state;
+    const { activeTab } = ReadActuallyPopup.state;
     if (activeTab?.id) {
-      await MarginaliaPopup.sendTabMessage(activeTab.id, {
+      await ReadActuallyPopup.sendTabMessage(activeTab.id, {
         type: "ENABLE_TRACKING_ON_SITE",
       });
     }
     await chrome.storage.local.set({
-      [MarginaliaPopup.STORAGE.onboarded]: true,
+      [ReadActuallyPopup.STORAGE.onboarded]: true,
     });
     await CardDashboard.load();
   },

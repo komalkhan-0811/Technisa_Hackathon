@@ -119,6 +119,28 @@ function evaluateSkim(state) {
   return tooFast || neverProminent;
 }
 
+// Card 4: an in-page "sticker" prepended to a section's own element the
+// moment it's flagged skimmed, so the signal is visible right where the
+// user is reading rather than only in the popup/badge. Scrolling back and
+// actually reading the section clears the flag (see the observer callback
+// below), so the sticker needs to come back off too rather than being a
+// one-way mark.
+const SKIM_STICKER_CLASS = "read-actually-skim-sticker";
+
+function addSkimSticker(el) {
+  if (el.querySelector(`:scope > .${SKIM_STICKER_CLASS}`)) return;
+  const sticker = document.createElement("span");
+  sticker.className = SKIM_STICKER_CLASS;
+  sticker.textContent = "skimmed";
+  sticker.setAttribute("aria-hidden", "true");
+  el.prepend(sticker);
+}
+
+function removeSkimSticker(el) {
+  const sticker = el.querySelector(`:scope > .${SKIM_STICKER_CLASS}`);
+  if (sticker) sticker.remove();
+}
+
 function observeSections(sections) {
   const observer = new IntersectionObserver(
     (entries) => {
@@ -153,9 +175,12 @@ function observeSections(sections) {
               wordCount: state.wordCount,
               flaggedAt: Date.now(), // lets the popup throttle a burst of flags for display
             });
+            addSkimSticker(entry.target);
           } else {
             skimmedSections.delete(state.id);
+            removeSkimSticker(entry.target);
           }
+          updateSkimAlert(skimmedSections.size); // Card 4: skim-alert.js
           log(
             skimmed ? "flagged as skimmed:" : "read sufficiently:",
             state.id,
@@ -278,7 +303,7 @@ function highlightRangeInElement(element, startIndex, endIndex) {
   range.setEnd(endNode, endOffset);
 
   const mark = document.createElement("mark");
-  mark.className = "marginalia-highlight";
+  mark.className = "read-actually-highlight";
   try {
     // surroundContents() throws whenever the range spans multiple sibling
     // elements (e.g. Wikipedia bolds the article's title phrase in its

@@ -1,6 +1,6 @@
 // Shared popup utilities, constants, and navigation.
 
-const MarginaliaPopup = {
+const ReadActuallyPopup = {
   // Set to false before shipping — shows all popup cards stacked for visual QA.
   TEST_SHOW_ALL_CARDS: false,
 
