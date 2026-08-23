@@ -243,16 +243,16 @@ def health():
 def generate_quiz(req: GenerateQuizRequest):
     text = req.text.strip()
 
-    if len(text) < 40:
+    if len(text) < 100:
         raise HTTPException(
             status_code=400,
-            detail="text is too short to quiz on",
+            detail="Selection is too short (minimum 100 characters required).",
         )
 
-    if len(text) > 10000:
+    if len(text) > 8000:
         raise HTTPException(
             status_code=400,
-            detail="text is too long to quiz on (maximum 10000 characters)",
+            detail="Selection is too long (maximum 8,000 characters allowed).",
         )
 
     prompt = (

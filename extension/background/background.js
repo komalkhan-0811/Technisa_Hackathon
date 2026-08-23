@@ -1,20 +1,14 @@
 // Background service worker (Manifest V3).
 //
 // Responsibilities:
-//   - Relay "generate quiz" requests from the popup to the backend, since
-//     this keeps a single place to add auth/headers/retries later.
-//   - Card 4: reflect the current tab's skim count on the toolbar badge.
-//   - Card 5 (+ the pre-existing right-click entry) and Card 4's skim
-//     alert: relay a manual selection or "quiz me on everything I've
-//     skimmed" request into a pending quiz request in chrome.storage.local
-//     (key/shape matches shared.js's SESSION.pendingManualQuiz on the
-//     popup side: { text, tabId, source, count }), then hand off via
-//     chrome.action.openPopup(). popup.js reads and clears this itself on
-//     open -- background.js only ever writes it.
+//   - Relay "generate quiz" requests from the popup to the backend.
+//   - Reflect current tab skim count on toolbar badge.
+//   - Relay manual selections and skimmed content into in-page overlays or pending storage state.
 
 const BACKEND_URL = "http://localhost:8000";
 const BADGE_COLOR = "#a6742e";
 const CURRENT_QUIZ_KEY = "currentQuiz";
+const PENDING_MANUAL_QUIZ_KEY = "pendingManualQuiz";
 
 function sendTabMessage(tabId, message) {
   return new Promise((resolve) => {
@@ -29,66 +23,84 @@ function sendTabMessage(tabId, message) {
   });
 }
 
-// Deliberately chrome.storage.local, not .session: verified live that a
-// value background.js writes to storage.session is unreadable from any
-// other extension context (popup opened via page.goto() or via
-// chrome.tabs.create(), even after explicitly calling setAccessLevel to
-// widen it) in this environment. storage.local has no such restriction and
-// was confirmed to round-trip correctly. Its longer persistence (survives
-// browser restarts, vs. session's tab-session lifetime) isn't a real
-// concern here since popup.js clears this key immediately after reading it
-// (see shared.js's clearPendingManualQuiz, called both on consumption and
-// at quiz end).
-  async function triggerManualQuiz(tabId, text, meta = {}) {
-    if (tabId == null || !text) return;
-    const source = meta.source || "manual";
-    const count = meta.count || 3;
+async function triggerManualQuiz(tabId, text, meta = {}) {
+  if (tabId == null || !text) return;
+  const source = meta.source || "manual";
+  const count = meta.count || 3;
+  const trimmedText = text.trim();
 
-    try {
-      // 1. Notify content script overlay to show loading state
-      await sendTabMessage(tabId, { type: "OPEN_QUIZ_MODAL", loading: true });
-
-      // 2. Fetch quiz directly from backend
-      const response = await fetch(`${BACKEND_URL}/generate-quiz`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, num_questions: count }),
-      });
-
-      if (!response.ok) throw new Error(`backend returned ${response.status}`);
-
-      const quizData = await response.json();
-
-      // 3. Store quiz state for popups/other components relying on CURRENT_QUIZ_KEY
-      await chrome.storage.local.set({ [CURRENT_QUIZ_KEY]: quizData });
-
-      // 4. Send successful quiz payload to the overlay modal
-      await sendTabMessage(tabId, {
-        type: "OPEN_QUIZ_MODAL",
-        loading: false,
-        quizData,
-      });
-    } catch (err) {
-      console.warn("[background] Direct overlay generation failed, falling back to popup flow:", err);
-
-      // 5. Send error to overlay
-      await sendTabMessage(tabId, {
-        type: "OPEN_QUIZ_MODAL",
-        loading: false,
-        error: "Quiz generation failed. Is the backend running?",
-      });
-
-      // 6. Fallback: Save to storage so the teammate's extension popup can handle it
-      chrome.storage.local
-        .set({
-          [PENDING_MANUAL_QUIZ_KEY]: { text, tabId, source, count },
-        })
-        .then(() => chrome.action.openPopup())
-        .catch((storageErr) => {
-          console.warn("[background] triggerManualQuiz fallback failed:", storageErr);
-        });
-    }
+  // 1. Length validation guardrails
+  if (trimmedText.length < 100) {
+    await sendTabMessage(tabId, {
+      type: "OPEN_QUIZ_MODAL",
+      error: "Selection is too short. Please highlight at least 100 characters (about 1-2 full sentences).",
+    });
+    return;
   }
+
+  if (trimmedText.length > 8000) {
+    await sendTabMessage(tabId, {
+      type: "OPEN_QUIZ_MODAL",
+      error: "Selection is too long (over 8,000 characters). Please highlight a shorter section.",
+    });
+    return;
+  }
+
+  try {
+    // 2. Notify content script overlay to show loading state
+    await sendTabMessage(tabId, { type: "OPEN_QUIZ_MODAL", loading: true });
+
+    // 3. Fetch quiz directly from backend
+    const response = await fetch(`${BACKEND_URL}/generate-quiz`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: trimmedText, num_questions: count }),
+    });
+
+    if (!response.ok) {
+      let detail = `Backend returned ${response.status}.`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) detail = errorData.detail;
+      } catch {
+        // Fallback status text if JSON parsing fails
+      }
+      throw new Error(detail);
+    }
+
+    const quizData = await response.json();
+
+    // 4. Store state for popups and components
+    await chrome.storage.local.set({ [CURRENT_QUIZ_KEY]: quizData });
+
+    // 5. Send payload to overlay modal
+    await sendTabMessage(tabId, {
+      type: "OPEN_QUIZ_MODAL",
+      loading: false,
+      quizData,
+    });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.warn("[background] Direct overlay generation failed, falling back to popup flow:", errorMsg);
+
+    // 6. Send error message to overlay
+    await sendTabMessage(tabId, {
+      type: "OPEN_QUIZ_MODAL",
+      loading: false,
+      error: errorMsg,
+    });
+
+    // 7. Fallback: Save to storage so the teammate's extension popup can handle it
+    chrome.storage.local
+      .set({
+        [PENDING_MANUAL_QUIZ_KEY]: { text: trimmedText, tabId, source, count },
+      })
+      .then(() => chrome.action.openPopup())
+      .catch((storageErr) => {
+        console.warn("[background] triggerManualQuiz fallback failed:", storageErr);
+      });
+  }
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -110,16 +122,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        text: message.text,
+        text: message.text?.trim(),
         num_questions: message.numQuestions || 3,
       }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => null);
-        // FastAPI error responses (400/502/etc.) are still valid JSON
-        // bodies -- res.json() succeeds on them too -- so status must be
-        // checked explicitly, or a real backend error (bad input, Gemini
-        // timeout) silently looks like a successful empty quiz downstream.
         if (!res.ok) {
           throw new Error(data?.detail || `Backend returned ${res.status}`);
         }
@@ -127,7 +135,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
       .then((data) => sendResponse({ ok: true, data }))
       .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
-    return true; // keep the message channel open for the async response
+    return true; // Keep message channel open for async response
   }
 
   if (message.type === "SKIM_COUNT_UPDATED") {

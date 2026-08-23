@@ -7,7 +7,10 @@
 
 const SELECTION_BUTTON_ID = "read-actually-selection-button";
 // const SELECTION_BUTTON_ID = "marginalia-selection-button";
-const MIN_SELECTION_CHARACTERS = 30;
+//const MIN_SELECTION_CHARACTERS = 30;
+//const SELECTION_BUTTON_ID = "marginalia-selection-button";
+const MIN_SELECTION_CHARACTERS = 100;
+const MAX_SELECTION_CHARACTERS = 8000;
 let currentSelectionText = "";
 
 function removeSelectionButton() {
@@ -38,9 +41,35 @@ function showSelectionButton(rect, text) {
   button.addEventListener("mousedown", (event) => event.preventDefault());
 
   button.addEventListener("click", () => {
+    const text = currentSelectionText.trim();
+    if (text.length === 0) {
+      showQuizOverlay(
+        null,
+        "No readable text selected. Please highlight text from the page."
+      );
+      removeSelectionButton();
+      return;
+    }
+    if (text.length < MIN_SELECTION_CHARACTERS) {
+      showQuizOverlay(
+        null,
+        "Selection is too short. Please highlight at least 100 characters (about 1-2 full sentences)."
+      );
+      removeSelectionButton();
+      return;
+    }
+    if (text.length > MAX_SELECTION_CHARACTERS) {
+      showQuizOverlay(
+        null,
+        "Selection is too long (over 8,000 characters). Please highlight a shorter section."
+      );
+      removeSelectionButton();
+      return;
+    }
+
     safeSendMessage({
       type: "MANUAL_QUIZ_REQUEST",
-      text: currentSelectionText,
+      text,
     });
     removeSelectionButton();
   });
@@ -66,7 +95,7 @@ function initSelectionButton() {
 
     // Ignore short accidental selections; the backend also needs enough
     // context to produce useful comprehension questions.
-    if (text.length < MIN_SELECTION_CHARACTERS) {
+    if (text.length < 30) {
       removeSelectionButton();
       return;
     }
