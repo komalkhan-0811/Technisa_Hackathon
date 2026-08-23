@@ -14,7 +14,20 @@
 
 const BACKEND_URL = "http://localhost:8000";
 const BADGE_COLOR = "#a6742e";
-const PENDING_MANUAL_QUIZ_KEY = "pendingManualQuiz";
+const CURRENT_QUIZ_KEY = "currentQuiz";
+
+function sendTabMessage(tabId, message) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[background] tab message failed:", chrome.runtime.lastError.message);
+        resolve(null);
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
 // Deliberately chrome.storage.local, not .session: verified live that a
 // value background.js writes to storage.session is unreadable from any
@@ -26,23 +39,61 @@ const PENDING_MANUAL_QUIZ_KEY = "pendingManualQuiz";
 // concern here since popup.js clears this key immediately after reading it
 // (see shared.js's clearPendingManualQuiz, called both on consumption and
 // at quiz end).
-function triggerManualQuiz(tabId, text, meta = {}) {
-  if (tabId == null || !text) return;
-  const source = meta.source || "manual";
-  chrome.storage.local
-    .set({
-      [PENDING_MANUAL_QUIZ_KEY]: { text, tabId, source, count: meta.count },
-    })
-    .then(() => chrome.action.openPopup())
-    .catch((err) => {
-      console.warn("[background] triggerManualQuiz failed:", err);
-    });
-}
+  async function triggerManualQuiz(tabId, text, meta = {}) {
+    if (tabId == null || !text) return;
+    const source = meta.source || "manual";
+    const count = meta.count || 3;
+
+    try {
+      // 1. Notify content script overlay to show loading state
+      await sendTabMessage(tabId, { type: "OPEN_QUIZ_MODAL", loading: true });
+
+      // 2. Fetch quiz directly from backend
+      const response = await fetch(`${BACKEND_URL}/generate-quiz`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, num_questions: count }),
+      });
+
+      if (!response.ok) throw new Error(`backend returned ${response.status}`);
+
+      const quizData = await response.json();
+
+      // 3. Store quiz state for popups/other components relying on CURRENT_QUIZ_KEY
+      await chrome.storage.local.set({ [CURRENT_QUIZ_KEY]: quizData });
+
+      // 4. Send successful quiz payload to the overlay modal
+      await sendTabMessage(tabId, {
+        type: "OPEN_QUIZ_MODAL",
+        loading: false,
+        quizData,
+      });
+    } catch (err) {
+      console.warn("[background] Direct overlay generation failed, falling back to popup flow:", err);
+
+      // 5. Send error to overlay
+      await sendTabMessage(tabId, {
+        type: "OPEN_QUIZ_MODAL",
+        loading: false,
+        error: "Quiz generation failed. Is the backend running?",
+      });
+
+      // 6. Fallback: Save to storage so the teammate's extension popup can handle it
+      chrome.storage.local
+        .set({
+          [PENDING_MANUAL_QUIZ_KEY]: { text, tabId, source, count },
+        })
+        .then(() => chrome.action.openPopup())
+        .catch((storageErr) => {
+          console.warn("[background] triggerManualQuiz fallback failed:", storageErr);
+        });
+    }
+  }
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "quiz-me-on-selection",
-    title: "Quiz me on this",
+    title: "⚡ Quiz me on this selection",
     contexts: ["selection"],
   });
 });
@@ -60,7 +111,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: message.text,
-        num_questions: message.numQuestions || 2,
+        num_questions: message.numQuestions || 3,
       }),
     })
       .then(async (res) => {

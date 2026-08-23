@@ -69,6 +69,8 @@ const CardQuiz = {
       3,
       Math.max(1, source === "manual" ? 2 : skimmedSections.length || 2)
     );
+    //const { skimmedSections } = MarginaliaPopup.state;
+    //const numQuestions = 3;
 
     chrome.runtime.sendMessage(
       { type: "GENERATE_QUIZ", text, numQuestions },

@@ -364,6 +364,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "HIGHLIGHT_EXCERPT":
       sendResponse({ ok: highlightExcerpt(message.sourceExcerpt) });
       break;
+    case "OPEN_QUIZ_MODAL":
+      showQuizOverlay(message.quizData, message.error, message.loading);
+      sendResponse({ ok: true });
+      break;
     default:
       break;
   }

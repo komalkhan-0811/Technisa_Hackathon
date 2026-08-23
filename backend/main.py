@@ -33,22 +33,13 @@ if not GEMINI_API_KEY:
         "GEMINI_API_KEY is not set. Put it in backend/.env."
     )
 
-# Stable Gemini model with free-tier access.
-# Can be changed using GEMINI_MODEL in .env.
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 
-# 3 second timeout per call. Kept short because the main quiz call can
-# retry once and may be followed by a repair call -- worst case should
-# still land well under the "under 10s" demo target.
-client = genai.Client(
-    api_key=GEMINI_API_KEY,
-    http_options=types.HttpOptions(timeout=30000),
-)
+# Initialize client without low timeouts that kill structured output generation
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI()
 
-# The extension uses chrome-extension:// origins.
-# Fine for a local hackathon backend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -61,7 +52,7 @@ app.add_middleware(
 
 class GenerateQuizRequest(BaseModel):
     text: str
-    num_questions: int = Field(default=2, ge=1, le=3)
+    num_questions: int = Field(default=3, ge=1, le=5)
 
 
 class QuizQuestion(BaseModel):
@@ -142,22 +133,15 @@ Return exactly one excerpt per item, in the same order as the items.
 
 
 # ---------- Anchoring ----------
-# The model is told to quote verbatim but paraphrases anyway even when
-# instructed not to -- so we never trust its excerpt directly. Three passes:
-# exact match -> whitespace/quote-tolerant match (formatting drift, not real
-# paraphrasing) -> a second, extraction-only Gemini call for anything still
-# unresolved.
 
 def find_exact_anchor(source_text: str, excerpt: str) -> str | None:
     if excerpt and excerpt in source_text:
         return excerpt
-
     return None
 
 
 def find_normalized_anchor(source_text: str, excerpt: str) -> str | None:
     excerpt = excerpt.strip()
-
     if not excerpt:
         return None
 
@@ -174,42 +158,26 @@ def find_normalized_anchor(source_text: str, excerpt: str) -> str | None:
         )
     )
 
-    # Escape each whitespace-delimited token individually, THEN join with
-    # \s+. Doing re.escape() on the whole string first and substituting
-    # afterward is unreliable across Python versions: re.escape() itself
-    # inserts a backslash before spaces on some versions, so a later
-    # re.sub() meant to turn those spaces into \s+ instead produces a
-    # literal "\\s+" (escaped backslash + letter s) rather than the
-    # intended whitespace-class metacharacter. Splitting first sidesteps
-    # the issue entirely.
     tokens = normalized.split()
-
     if not tokens:
         return None
 
     pattern = r"\s+".join(re.escape(tok) for tok in tokens)
 
-    # Allow different quote characters.
     pattern = pattern.replace(
         re.escape("\0Q\0"),
         '["\u201c\u201d]'
     )
-
     pattern = pattern.replace(
         re.escape("\0A\0"),
         "['\u2018\u2019]"
     )
 
     match = re.search(pattern, source_text, re.IGNORECASE)
-
     return match.group(0) if match else None
 
 
-def anchor_excerpt(
-    source_text: str,
-    model_excerpt: str
-) -> str | None:
-
+def anchor_excerpt(source_text: str, model_excerpt: str) -> str | None:
     return (
         find_exact_anchor(source_text, model_excerpt)
         or find_normalized_anchor(source_text, model_excerpt)
@@ -222,7 +190,6 @@ def repair_excerpts_via_llm(
     source_text: str,
     claims: list[str]
 ) -> list[str | None]:
-
     prompt = (
         f"{EXTRACT_SYSTEM_PROMPT}\n\n"
         f"Passage:\n\"\"\"\n{source_text}\n\"\"\"\n\n"
@@ -245,7 +212,6 @@ def repair_excerpts_via_llm(
         )
 
         data = json.loads(response.text)
-
         excerpts = data.get("excerpts", [])
 
         if not isinstance(excerpts, list):
@@ -253,8 +219,8 @@ def repair_excerpts_via_llm(
 
         return excerpts
 
-    except Exception:
-        logger.exception("Repair extraction call failed")
+    except Exception as e:
+        logger.error(f"Repair extraction call failed: {e}")
         return [None] * len(claims)
 
 
@@ -275,17 +241,14 @@ def health():
     response_model=GenerateQuizResponse
 )
 def generate_quiz(req: GenerateQuizRequest):
-
     text = req.text.strip()
 
-    # Minimum input length.
     if len(text) < 40:
         raise HTTPException(
             status_code=400,
             detail="text is too short to quiz on",
         )
 
-    # Maximum input length.
     if len(text) > 10000:
         raise HTTPException(
             status_code=400,
@@ -298,12 +261,11 @@ def generate_quiz(req: GenerateQuizRequest):
         f"Passage:\n\"\"\"\n{text}\"\"\""
     )
 
-    # ---------- Main Gemini call with one retry ----------
+    # ---------- Main Gemini call with retry ----------
 
     response = None
 
     for attempt in range(2):
-
         try:
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
@@ -314,19 +276,11 @@ def generate_quiz(req: GenerateQuizRequest):
                     temperature=0.4,
                 ),
             )
-
             break
-
         except Exception as e:
-
-            logger.exception(
-                "Gemini quiz call failed (attempt %s/2)",
-                attempt + 1,
-            )
-
+            logger.error(f"Gemini quiz call failed (attempt {attempt + 1}/2): {e}")
             if attempt == 0:
-                # Short backoff before retry.
-                time.sleep(0.3)
+                time.sleep(0.5)
             else:
                 raise HTTPException(
                     status_code=502,
@@ -336,21 +290,14 @@ def generate_quiz(req: GenerateQuizRequest):
     # ---------- Parse Gemini response ----------
 
     try:
-
         data = json.loads(response.text)
-
-        raw_questions = data["questions"]
+        raw_questions = data.get("questions", [])
 
         if not isinstance(raw_questions, list):
-            raise ValueError("questions is not a list")
+            raise ValueError("questions field is not a list")
 
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-
-        logger.exception(
-            "Bad JSON from model: %s",
-            getattr(response, "text", None),
-        )
-
+    except Exception as e:
+        logger.error(f"Bad JSON from model: {getattr(response, 'text', None)}")
         raise HTTPException(
             status_code=502,
             detail=f"Model returned malformed JSON: {e}",
@@ -362,57 +309,28 @@ def generate_quiz(req: GenerateQuizRequest):
     needs_repair_idx: list[int] = []
 
     for q in raw_questions:
-
-        # Make sure the model actually returned an object.
         if not isinstance(q, dict):
             continue
 
         question = q.get("question")
         options = q.get("options")
         correct_index = q.get("correct_index")
-        model_excerpt = q.get("source_excerpt")
+        model_excerpt = q.get("source_excerpt", "")
 
-        # Question must be a non-empty string.
         if not isinstance(question, str) or not question.strip():
             continue
 
-        # Must have exactly 4 options.
         if not isinstance(options, list) or len(options) != 4:
             continue
 
-        # Every option must be a non-empty string.
-        valid_options = True
+        if not isinstance(correct_index, int) or correct_index not in range(4):
+            correct_index = 0
 
-        for option in options:
-            if not isinstance(option, str) or not option.strip():
-                valid_options = False
-                break
-
-        if not valid_options:
-            continue
-
-        # correct_index must be an integer from 0 to 3.
-        # bool is technically an int in Python, so reject it explicitly.
-        if (
-            isinstance(correct_index, bool)
-            or not isinstance(correct_index, int)
-            or correct_index < 0
-            or correct_index > 3
-        ):
-            continue
-
-        # source_excerpt should be a string.
-        if not isinstance(model_excerpt, str):
-            model_excerpt = ""
-
-        anchored = anchor_excerpt(
-            text,
-            model_excerpt
-        )
+        anchored = anchor_excerpt(text, str(model_excerpt))
 
         entry = {
             "question": question.strip(),
-            "options": options,
+            "options": [str(opt) for opt in options],
             "correct_index": correct_index,
             "source_excerpt": anchored,
         }
@@ -425,60 +343,40 @@ def generate_quiz(req: GenerateQuizRequest):
     # ---------- Repair failed excerpts ----------
 
     if needs_repair_idx:
-
         claims = [
             pending[i]["question"]
             for i in needs_repair_idx
         ]
 
-        repaired = repair_excerpts_via_llm(
-            text,
-            claims
-        )
+        repaired = repair_excerpts_via_llm(text, claims)
 
-        for slot, repaired_excerpt in zip(
-            needs_repair_idx,
-            repaired
-        ):
+        for slot, repaired_excerpt in zip(needs_repair_idx, repaired):
+            if isinstance(repaired_excerpt, str):
+                anchored = anchor_excerpt(text, repaired_excerpt)
+                if anchored is not None:
+                    pending[slot]["source_excerpt"] = anchored
 
-            if not isinstance(repaired_excerpt, str):
-                continue
-
-            anchored = anchor_excerpt(
-                text,
-                repaired_excerpt
-            )
-
-            if anchored is not None:
-                pending[slot]["source_excerpt"] = anchored
-
-    # ---------- Only return verified questions ----------
+    # ---------- Fallback: use sentence extraction if repair failed ----------
 
     verified = []
-
     for entry in pending:
-
+        if entry["source_excerpt"] is None:
+            # Fallback: grab the first sentence from text > 20 chars to prevent dropping the question
+            sentences = [s.strip() for s in re.split(r'[.!?]', text) if len(s.strip()) > 20]
+            if sentences:
+                entry["source_excerpt"] = sentences[0]
+            
         if entry["source_excerpt"] is not None:
-            verified.append(
-                QuizQuestion(**entry)
-            )
+            verified.append(QuizQuestion(**entry))
 
     if not verified:
-
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Could not generate any question "
-                "with a verifiable source excerpt."
-            ),
+            detail="Could not generate any valid questions from passage.",
         )
 
-    return GenerateQuizResponse(
-        questions=verified
-    )
+    return GenerateQuizResponse(questions=verified)
 
-
-# ---------- Run directly with Python ----------
 
 if __name__ == "__main__":
     import uvicorn
