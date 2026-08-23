@@ -31,7 +31,7 @@ const CardQuiz = {
   },
 
   showLoading() {
-    MarginaliaPopup.showCard("quiz");
+    ReadActuallyPopup.showCard("quiz");
     this.els.loading.classList.remove("hidden");
     this.els.content.classList.add("hidden");
     this.els.error.classList.add("hidden");
@@ -64,7 +64,7 @@ const CardQuiz = {
     this.currentIndex = 0;
     this.showLoading();
 
-    const { skimmedSections } = MarginaliaPopup.state;
+    const { skimmedSections } = ReadActuallyPopup.state;
     const numQuestions = Math.min(
       3,
       Math.max(1, source === "manual" ? 2 : skimmedSections.length || 2)
@@ -74,7 +74,9 @@ const CardQuiz = {
       { type: "GENERATE_QUIZ", text, numQuestions },
       (result) => {
         if (!result?.ok) {
-          this.showError("Quiz generation failed. Is the backend running?");
+          this.showError(
+            result?.error || "Quiz generation failed. Is the backend running?"
+          );
           return;
         }
 
@@ -88,12 +90,13 @@ const CardQuiz = {
         this.els.content.classList.remove("hidden");
 
         if (source === "skimmed") {
-          this.els.badgeText.textContent = `Section ${sectionIndex} skimmed`;
+          this.els.badgeText.textContent =
+            sectionIndex === 1 ? "1 section skimmed" : `${sectionIndex} sections skimmed`;
           this.els.headline.classList.remove("hidden");
           this.els.meta.classList.remove("hidden");
           const words = skimmedSections.reduce((n, s) => n + (s.wordCount || 0), 0);
           const estSec =
-            ((words / 100) * MarginaliaPopup.MS_PER_100_WORDS) / 1000;
+            ((words / 100) * ReadActuallyPopup.MS_PER_100_WORDS) / 1000;
           const skimSec = Math.max(0.8, estSec * 0.15).toFixed(1);
           this.els.meta.textContent = `${skimSec}s vs. ${estSec.toFixed(0)}s estimated`;
         } else {
@@ -155,7 +158,7 @@ const CardQuiz = {
     const correctText = q.options[q.correct_index];
 
     this.lockOptions(selectedBtn);
-    MarginaliaPopup.recordQuizResult(correct);
+    ReadActuallyPopup.recordQuizResult(correct);
 
     this.els.options.querySelectorAll(".quiz-option").forEach((btn, i) => {
       if (i === q.correct_index) btn.classList.add("quiz-option--correct");
@@ -195,7 +198,7 @@ const CardQuiz = {
   handleLocateSource() {
     const q = this.questions[this.currentIndex];
     if (this.tabId && q?.source_excerpt) {
-      MarginaliaPopup.sendTabMessage(this.tabId, {
+      ReadActuallyPopup.sendTabMessage(this.tabId, {
         type: "HIGHLIGHT_EXCERPT",
         sourceExcerpt: q.source_excerpt,
       });
@@ -214,9 +217,9 @@ const CardQuiz = {
   },
 
   async finish() {
-    await MarginaliaPopup.clearPendingManualQuiz();
+    await ReadActuallyPopup.clearPendingManualQuiz();
     const { onboarded } = await chrome.storage.local.get(
-      MarginaliaPopup.STORAGE.onboarded
+      ReadActuallyPopup.STORAGE.onboarded
     );
     if (onboarded) {
       await CardDashboard.load();

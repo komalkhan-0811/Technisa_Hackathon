@@ -4,10 +4,11 @@
 //   - Relay "generate quiz" requests from the popup to the backend, since
 //     this keeps a single place to add auth/headers/retries later.
 //   - Card 4: reflect the current tab's skim count on the toolbar badge.
-//   - Card 5 (+ the pre-existing right-click entry): relay a manual
-//     selection into a pending quiz request in chrome.storage.local
+//   - Card 5 (+ the pre-existing right-click entry) and Card 4's skim
+//     alert: relay a manual selection or "quiz me on everything I've
+//     skimmed" request into a pending quiz request in chrome.storage.local
 //     (key/shape matches shared.js's SESSION.pendingManualQuiz on the
-//     popup side: { text, tabId }), then hand off via
+//     popup side: { text, tabId, source, count }), then hand off via
 //     chrome.action.openPopup(). popup.js reads and clears this itself on
 //     open -- background.js only ever writes it.
 
@@ -25,10 +26,13 @@ const PENDING_MANUAL_QUIZ_KEY = "pendingManualQuiz";
 // concern here since popup.js clears this key immediately after reading it
 // (see shared.js's clearPendingManualQuiz, called both on consumption and
 // at quiz end).
-function triggerManualQuiz(tabId, text) {
+function triggerManualQuiz(tabId, text, meta = {}) {
   if (tabId == null || !text) return;
+  const source = meta.source || "manual";
   chrome.storage.local
-    .set({ [PENDING_MANUAL_QUIZ_KEY]: { text, tabId } })
+    .set({
+      [PENDING_MANUAL_QUIZ_KEY]: { text, tabId, source, count: meta.count },
+    })
     .then(() => chrome.action.openPopup())
     .catch((err) => {
       console.warn("[background] triggerManualQuiz failed:", err);
@@ -59,9 +63,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         num_questions: message.numQuestions || 2,
       }),
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        // FastAPI error responses (400/502/etc.) are still valid JSON
+        // bodies -- res.json() succeeds on them too -- so status must be
+        // checked explicitly, or a real backend error (bad input, Gemini
+        // timeout) silently looks like a successful empty quiz downstream.
+        if (!res.ok) {
+          throw new Error(data?.detail || `Backend returned ${res.status}`);
+        }
+        return data;
+      })
       .then((data) => sendResponse({ ok: true, data }))
-      .catch((err) => sendResponse({ ok: false, error: String(err) }));
+      .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
     return true; // keep the message channel open for the async response
   }
 
@@ -79,6 +93,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "MANUAL_QUIZ_REQUEST") {
     triggerManualQuiz(sender.tab?.id, message.text);
+    return false;
+  }
+
+  if (message.type === "SKIM_QUIZ_REQUEST") {
+    triggerManualQuiz(sender.tab?.id, message.text, {
+      source: "skimmed",
+      count: message.count,
+    });
     return false;
   }
 

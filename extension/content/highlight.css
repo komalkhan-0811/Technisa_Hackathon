@@ -1,12 +1,12 @@
-mark.marginalia-highlight {
+mark.read-actually-highlight {
   background: var(--accent);
   color: var(--ink);
   padding: 0 2px;
   border-radius: 3px;
-  animation: marginalia-highlight-pulse 1.6s ease-in-out 2;
+  animation: read-actually-highlight-pulse 1.6s ease-in-out 2;
 }
 
-@keyframes marginalia-highlight-pulse {
+@keyframes read-actually-highlight-pulse {
   0%,
   100% {
     background: var(--accent);

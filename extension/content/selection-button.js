@@ -5,7 +5,7 @@
 // one-off, user-initiated action on a specific passage, not ambient
 // tracking, so there's no reason to gate it behind the long-form check.
 
-const SELECTION_BUTTON_ID = "marginalia-selection-button";
+const SELECTION_BUTTON_ID = "read-actually-selection-button";
 let currentSelectionText = "";
 
 function removeSelectionButton() {

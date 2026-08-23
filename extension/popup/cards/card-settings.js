@@ -23,7 +23,7 @@ const CardSettings = {
     });
 
     this.els.resetOnboarding.addEventListener("click", async () => {
-      await chrome.storage.local.remove(MarginaliaPopup.STORAGE.onboarded);
+      await chrome.storage.local.remove(ReadActuallyPopup.STORAGE.onboarded);
       CardOnboarding.show();
     });
   },
@@ -31,7 +31,7 @@ const CardSettings = {
   async show() {
     this.current = await loadTheme();
     this.render();
-    MarginaliaPopup.showCard("settings");
+    ReadActuallyPopup.showCard("settings");
   },
 
   async selectTheme(name) {
