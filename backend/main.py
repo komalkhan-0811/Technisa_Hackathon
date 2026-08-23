@@ -33,9 +33,14 @@ if not GEMINI_API_KEY:
         "GEMINI_API_KEY is not set. Put it in backend/.env."
     )
 
-# Stable Gemini model with free-tier access.
+# gemini-3.6-flash (the prior default) does hidden "thinking" by default --
+# even a one-word reply took ~18s in testing, and the full quiz call
+# regularly exceeded this file's own 30s timeout, which is what was making
+# "Quiz me" and "Check understanding" look like they did nothing in the
+# real extension. flash-lite skips that reasoning pass and returned the
+# same structured quiz output in ~1s in testing.
 # Can be changed using GEMINI_MODEL in .env.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 # 3 second timeout per call. Kept short because the main quiz call can
 # retry once and may be followed by a repair call -- worst case should
