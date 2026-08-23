@@ -6,14 +6,12 @@
 // tracking, so there's no reason to gate it behind the long-form check.
 
 const SELECTION_BUTTON_ID = "read-actually-selection-button";
-// const SELECTION_BUTTON_ID = "marginalia-selection-button";
-//const MIN_SELECTION_CHARACTERS = 30;
-//const SELECTION_BUTTON_ID = "marginalia-selection-button";
 const MIN_SELECTION_CHARACTERS = 100;
 const MAX_SELECTION_CHARACTERS = 8000;
 const ENABLED_SITES_KEY = "enabledSites";
 let currentSelectionText = "";
 let selectionSiteEnabled = false;
+let selectionSiteReady = false;
 
 function currentSiteOrigin() {
   return window.location.hostname;
@@ -112,13 +110,14 @@ function showSelectionButtonSample() {
 }
 
 function initSelectionButton() {
-  isCurrentSiteEnabled().then((enabled) => {
-    selectionSiteEnabled = enabled;
-    if (!enabled) removeSelectionButton();
-  });
+  // A stored hostname records that this site has been enabled before, but
+  // each page load still requires an explicit opt-in before showing UI.
+  selectionSiteReady = true;
+  selectionSiteEnabled = false;
+  removeSelectionButton();
 
   function updateSelectionButton() {
-    if (!selectionSiteEnabled) return;
+    if (!selectionSiteReady || !selectionSiteEnabled) return;
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : "";
 
@@ -141,10 +140,15 @@ function initSelectionButton() {
   document.addEventListener("selectionchange", updateSelectionButton);
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes[THEME_STORAGE_KEY] && quizOverlayHost) {
+      applyQuizOverlayTheme(quizOverlayHost, changes[THEME_STORAGE_KEY].newValue);
+    }
     if (areaName !== "local" || !changes[ENABLED_SITES_KEY]) return;
     const enabledSites = changes[ENABLED_SITES_KEY].newValue || [];
-    selectionSiteEnabled = enabledSites.includes(currentSiteOrigin());
-    if (!selectionSiteEnabled) removeSelectionButton();
+    if (!enabledSites.includes(currentSiteOrigin())) {
+      selectionSiteEnabled = false;
+      removeSelectionButton();
+    }
   });
 
   // Starting a new interaction elsewhere (not on the button itself) should
@@ -155,10 +159,40 @@ function initSelectionButton() {
   });
 }
 
-const QUIZ_OVERLAY_ID = "marginalia-quiz-overlay";
+const QUIZ_OVERLAY_ID = "read-actually-quiz-overlay";
+let quizOverlayHost = null;
+
+function applyQuizOverlayTheme(host, themeSettings) {
+  const themeName = THEMES[themeSettings?.name]
+    ? themeSettings.name
+    : DEFAULT_THEME.name;
+  const mode = themeSettings?.mode === "light" ? "light" : "dark";
+  const tokens = THEMES[themeName][mode];
+  const isDark = mode === "dark";
+
+  host.dataset.theme = themeName;
+  host.dataset.mode = mode;
+  host.style.setProperty("--bg-primary", isDark ? tokens.ink : tokens.paper);
+  host.style.setProperty("--text-primary", isDark ? tokens.paper : tokens.ink);
+  host.style.setProperty("--accent-color", tokens.accent);
+  host.style.setProperty("--border-color", tokens.accent);
+  host.style.setProperty("--card-bg", isDark ? tokens.ink : tokens.paper);
+  host.style.setProperty("--muted-text", isDark ? tokens.paper : tokens.ink);
+  host.style.setProperty("--success-color", tokens.success);
+  host.style.setProperty("--error-color", tokens.alert);
+  host.style.setProperty(
+    "--shadow-color",
+    isDark ? "rgba(0, 0, 0, 0.45)" : "rgba(38, 52, 45, 0.28)"
+  );
+}
+
+async function initializeQuizOverlayTheme(host) {
+  applyQuizOverlayTheme(host, await loadTheme());
+}
 
 function removeQuizOverlay() {
   document.getElementById(QUIZ_OVERLAY_ID)?.remove();
+  quizOverlayHost = null;
 }
 
 function showQuizOverlay(quizData, errorMessage, loading) {
@@ -166,6 +200,8 @@ function showQuizOverlay(quizData, errorMessage, loading) {
 
   const host = document.createElement("div");
   host.id = QUIZ_OVERLAY_ID;
+  quizOverlayHost = host;
+  initializeQuizOverlayTheme(host);
   const shadow = host.attachShadow({ mode: "open" });
   const questions = (quizData?.questions || []).slice(0, 3);
 
@@ -173,7 +209,7 @@ function showQuizOverlay(quizData, errorMessage, loading) {
     <link rel="stylesheet" href="${chrome.runtime.getURL("content/quiz-overlay.css")}">
     <section class="overlay" role="dialog" aria-modal="true" aria-label="Quiz">
       <button class="close" type="button" aria-label="Close quiz">&times;</button>
-      <p class="eyebrow">Marginalia / selected passage</p>
+      <p class="eyebrow">Read Actually / selected passage</p>
       <h2>Check your understanding</h2>
       <p class="progress">${loading ? "Generating quiz..." : ""}</p>
       <div class="question"></div>
