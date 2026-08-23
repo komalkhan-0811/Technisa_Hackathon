@@ -19,6 +19,10 @@ function removeSkimAlert() {
 }
 
 function updateSkimAlert(count) {
+  if (isQuizModalOpen) {
+    removeSkimAlert();
+    return;
+  }
   if (skimAlertDismissed || count < SKIM_ALERT_THRESHOLD) {
     if (count < SKIM_ALERT_THRESHOLD) removeSkimAlert();
     return;
@@ -37,6 +41,7 @@ function updateSkimAlert(count) {
     document.body.appendChild(alert);
 
     alert.querySelector(".read-actually-skim-alert-quiz").addEventListener("click", () => {
+      if (isQuizModalOpen) return;
       const sections = Array.from(skimmedSections.values());
       if (!sections.length) return;
       safeSendMessage({

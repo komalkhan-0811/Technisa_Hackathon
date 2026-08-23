@@ -10,7 +10,7 @@ const SAMPLE_BADGE_COUNT = 3; // test-mode-only stand-in for a real skim count
 
 function boot() {
   initTheme(); // apply the stored theme to this page + stay in sync with popup changes
-  initSelectionButton(); // Card 5 -- always on, not gated by opt-in
+  initSelectionButton(); // Card 5 -- enabled sites only
 
   if (TEST_SHOW_ALL_CARDS) {
     log("TEST_SHOW_ALL_CARDS on: forcing Card 3 + Card 4 visible with sample data");
@@ -19,7 +19,7 @@ function boot() {
       type: "SKIM_COUNT_UPDATED",
       count: SAMPLE_BADGE_COUNT,
     }); // Card 4
-    showSelectionButtonSample(); // Card 5, no real selection needed
+    if (selectionSiteEnabled) showSelectionButtonSample(); // Card 5
     return;
   }
 

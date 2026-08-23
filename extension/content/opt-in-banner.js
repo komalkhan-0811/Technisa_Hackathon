@@ -22,9 +22,12 @@ function showOptInBanner(articleText) {
   `;
   document.body.appendChild(banner);
 
-  banner.querySelector(".read-actually-optin-enable").addEventListener("click", () => {
-    startTracking(articleText); // defined in content.js
-    banner.remove();
+
+banner.querySelector(".read-actually-optin-enable").addEventListener("click", () => {
+    enableCurrentSite().then(() => {
+      startTracking(articleText); // defined in content.js
+      banner.remove();
+    });
   });
   banner.querySelector(".read-actually-optin-dismiss").addEventListener("click", () => {
     banner.remove();

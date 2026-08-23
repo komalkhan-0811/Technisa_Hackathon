@@ -29,10 +29,18 @@
         "content/selection-button.css",
         "content/highlight.css",
         "content/skim-sticker.css",
-        "content/skim-alert.css"
+        "content/skim-alert.css",
+        "content/quiz-overlay.css",
+        "content/highlight.css"
       ],
       "run_at": "document_idle"
     }
   ],
   "icons": {}
+  ,"web_accessible_resources": [
+    {
+      "resources": ["content/quiz-overlay.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

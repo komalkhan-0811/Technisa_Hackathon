@@ -6,7 +6,33 @@
 // tracking, so there's no reason to gate it behind the long-form check.
 
 const SELECTION_BUTTON_ID = "read-actually-selection-button";
+const MIN_SELECTION_CHARACTERS = 100;
+const MAX_SELECTION_CHARACTERS = 8000;
+const ENABLED_SITES_KEY = "enabledSites";
 let currentSelectionText = "";
+let selectionSiteEnabled = false;
+let selectionSiteReady = false;
+
+function currentSiteOrigin() {
+  return window.location.hostname;
+}
+
+async function isCurrentSiteEnabled() {
+  const { [ENABLED_SITES_KEY]: enabledSites = [] } =
+    await chrome.storage.local.get(ENABLED_SITES_KEY);
+  return enabledSites.includes(currentSiteOrigin());
+}
+
+async function enableCurrentSite() {
+  const hostname = currentSiteOrigin();
+  if (!hostname) return;
+
+  const { [ENABLED_SITES_KEY]: enabledSites = [] } =
+    await chrome.storage.local.get(ENABLED_SITES_KEY);
+  if (!enabledSites.includes(hostname)) enabledSites.push(hostname);
+  await chrome.storage.local.set({ [ENABLED_SITES_KEY]: enabledSites });
+  selectionSiteEnabled = true;
+}
 
 function removeSelectionButton() {
   const existing = document.getElementById(SELECTION_BUTTON_ID);
@@ -36,9 +62,39 @@ function showSelectionButton(rect, text) {
   button.addEventListener("mousedown", (event) => event.preventDefault());
 
   button.addEventListener("click", () => {
+    if (isQuizModalOpen) {
+      removeSelectionButton();
+      return;
+    }
+    const text = currentSelectionText.trim();
+    if (text.length === 0) {
+      showQuizOverlay(
+        null,
+        "No readable text selected. Please highlight text from the page."
+      );
+      removeSelectionButton();
+      return;
+    }
+    if (text.length < MIN_SELECTION_CHARACTERS) {
+      showQuizOverlay(
+        null,
+        "Selection is too short. Please highlight at least 100 characters (about 1-2 full sentences)."
+      );
+      removeSelectionButton();
+      return;
+    }
+    if (text.length > MAX_SELECTION_CHARACTERS) {
+      showQuizOverlay(
+        null,
+        "Selection is too long (over 8,000 characters). Please highlight a shorter section."
+      );
+      removeSelectionButton();
+      return;
+    }
+
     safeSendMessage({
       type: "MANUAL_QUIZ_REQUEST",
-      text: currentSelectionText,
+      text,
     });
     removeSelectionButton();
   });
@@ -58,21 +114,48 @@ function showSelectionButtonSample() {
 }
 
 function initSelectionButton() {
-  document.addEventListener("mouseup", (event) => {
-    if (event.target && event.target.id === SELECTION_BUTTON_ID) return;
+  // A stored hostname records that this site has been enabled before, but
+  // each page load still requires an explicit opt-in before showing UI.
+  selectionSiteReady = true;
+  selectionSiteEnabled = false;
+  removeSelectionButton();
 
+  function updateSelectionButton() {
+    if (!selectionSiteReady || !selectionSiteEnabled || isQuizModalOpen) {
+      removeSelectionButton();
+      return;
+    }
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : "";
 
-    // Require a few words -- a single clicked/highlighted word isn't
-    // enough for a meaningful quiz question.
-    if (!text || countWords(text) < 3) {
+    // Ignore short accidental selections; the backend also needs enough
+    // context to produce useful comprehension questions.
+    if (text.length < 30) {
       removeSelectionButton();
       return;
     }
 
     const rect = selection.getRangeAt(0).getBoundingClientRect();
     showSelectionButton(rect, text);
+  }
+
+  document.addEventListener("mouseup", (event) => {
+    if (event.target && event.target.id === SELECTION_BUTTON_ID) return;
+    updateSelectionButton();
+  });
+
+  document.addEventListener("selectionchange", updateSelectionButton);
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes[THEME_STORAGE_KEY] && quizOverlayHost) {
+      applyQuizOverlayTheme(quizOverlayHost, changes[THEME_STORAGE_KEY].newValue);
+    }
+    if (areaName !== "local" || !changes[ENABLED_SITES_KEY]) return;
+    const enabledSites = changes[ENABLED_SITES_KEY].newValue || [];
+    if (!enabledSites.includes(currentSiteOrigin())) {
+      selectionSiteEnabled = false;
+      removeSelectionButton();
+    }
   });
 
   // Starting a new interaction elsewhere (not on the button itself) should
@@ -81,4 +164,132 @@ function initSelectionButton() {
     if (event.target && event.target.id === SELECTION_BUTTON_ID) return;
     removeSelectionButton();
   });
+}
+
+const QUIZ_OVERLAY_ID = "read-actually-quiz-overlay";
+let quizOverlayHost = null;
+
+function applyQuizOverlayTheme(host, themeSettings) {
+  const themeName = THEMES[themeSettings?.name]
+    ? themeSettings.name
+    : DEFAULT_THEME.name;
+  const mode = themeSettings?.mode === "light" ? "light" : "dark";
+  const tokens = THEMES[themeName][mode];
+  const isDark = mode === "dark";
+
+  host.dataset.theme = themeName;
+  host.dataset.mode = mode;
+  host.style.setProperty("--bg-primary", isDark ? tokens.ink : tokens.paper);
+  host.style.setProperty("--text-primary", isDark ? tokens.paper : tokens.ink);
+  host.style.setProperty("--accent-color", tokens.accent);
+  host.style.setProperty("--border-color", tokens.accent);
+  host.style.setProperty("--card-bg", isDark ? tokens.ink : tokens.paper);
+  host.style.setProperty("--muted-text", isDark ? tokens.paper : tokens.ink);
+  host.style.setProperty("--success-color", tokens.success);
+  host.style.setProperty("--error-color", tokens.alert);
+  host.style.setProperty(
+    "--shadow-color",
+    isDark ? "rgba(0, 0, 0, 0.45)" : "rgba(38, 52, 45, 0.28)"
+  );
+}
+
+async function initializeQuizOverlayTheme(host) {
+  applyQuizOverlayTheme(host, await loadTheme());
+}
+
+function removeQuizOverlay() {
+  document.getElementById(QUIZ_OVERLAY_ID)?.remove();
+  quizOverlayHost = null;
+  resetQuizModalState();
+}
+
+function showQuizOverlay(quizData, errorMessage, loading, source = "manual") {
+  if (isQuizModalOpen && activeQuizSource !== source) return;
+  removeQuizOverlay();
+  isQuizModalOpen = true;
+  activeQuizSource = source;
+  updateSkimAlert(0);
+
+  const host = document.createElement("div");
+  host.id = QUIZ_OVERLAY_ID;
+  quizOverlayHost = host;
+  initializeQuizOverlayTheme(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const questions = (quizData?.questions || []).slice(0, 3);
+
+  shadow.innerHTML = `
+    <link rel="stylesheet" href="${chrome.runtime.getURL("content/quiz-overlay.css")}">
+    <section class="overlay" role="dialog" aria-modal="true" aria-label="Quiz">
+      <button class="close" type="button" aria-label="Close quiz">&times;</button>
+      <p class="eyebrow">Read Actually / selected passage</p>
+      <h2>Check your understanding</h2>
+      <p class="progress">${loading ? "Generating quiz..." : ""}</p>
+      <div class="question"></div>
+      <div class="options" role="list"></div>
+      <p class="feedback" role="status"></p>
+      <button class="next" type="button" hidden>Next question</button>
+    </section>`;
+
+  document.documentElement.appendChild(host);
+  const overlay = shadow.querySelector(".overlay");
+  const questionElement = shadow.querySelector(".question");
+  const optionsElement = shadow.querySelector(".options");
+  const feedbackElement = shadow.querySelector(".feedback");
+  const progressElement = shadow.querySelector(".progress");
+  const nextButton = shadow.querySelector(".next");
+  let questionIndex = 0;
+
+  shadow.querySelector(".close").addEventListener("click", removeQuizOverlay);
+
+  if (loading) {
+    questionElement.textContent = "Reading your selected passage...";
+    return;
+  }
+
+  if (errorMessage || !questions.length) {
+    questionElement.textContent = errorMessage || "No questions were generated.";
+    progressElement.textContent = "Quiz unavailable";
+    return;
+  }
+
+  function renderQuestion() {
+    const question = questions[questionIndex];
+    progressElement.textContent = `Question ${questionIndex + 1} of ${questions.length}`;
+    questionElement.textContent = question.question;
+    optionsElement.innerHTML = "";
+    feedbackElement.textContent = "";
+    nextButton.hidden = true;
+    nextButton.textContent =
+      questionIndex === questions.length - 1 ? "Finish quiz" : "Next question";
+
+    question.options.forEach((optionText, optionIndex) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "option";
+      button.textContent = optionText;
+      button.addEventListener("click", () => {
+        optionsElement.querySelectorAll("button").forEach((option) => {
+          option.disabled = true;
+        });
+        const correct = optionIndex === question.correct_index;
+        button.classList.add(correct ? "correct" : "incorrect");
+        feedbackElement.textContent = correct
+          ? "Correct."
+          : `Not quite. The answer was: ${question.options[question.correct_index]}`;
+        nextButton.hidden = false;
+      });
+      optionsElement.appendChild(button);
+    });
+  }
+
+  nextButton.addEventListener("click", () => {
+    if (questionIndex === questions.length - 1) {
+      removeQuizOverlay();
+      return;
+    }
+    questionIndex += 1;
+    renderQuestion();
+  });
+
+  renderQuestion();
 }
