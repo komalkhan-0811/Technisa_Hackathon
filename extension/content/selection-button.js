@@ -11,7 +11,30 @@ const SELECTION_BUTTON_ID = "read-actually-selection-button";
 //const SELECTION_BUTTON_ID = "marginalia-selection-button";
 const MIN_SELECTION_CHARACTERS = 100;
 const MAX_SELECTION_CHARACTERS = 8000;
+const ENABLED_SITES_KEY = "enabledSites";
 let currentSelectionText = "";
+let selectionSiteEnabled = false;
+
+function currentSiteOrigin() {
+  return window.location.hostname;
+}
+
+async function isCurrentSiteEnabled() {
+  const { [ENABLED_SITES_KEY]: enabledSites = [] } =
+    await chrome.storage.local.get(ENABLED_SITES_KEY);
+  return enabledSites.includes(currentSiteOrigin());
+}
+
+async function enableCurrentSite() {
+  const hostname = currentSiteOrigin();
+  if (!hostname) return;
+
+  const { [ENABLED_SITES_KEY]: enabledSites = [] } =
+    await chrome.storage.local.get(ENABLED_SITES_KEY);
+  if (!enabledSites.includes(hostname)) enabledSites.push(hostname);
+  await chrome.storage.local.set({ [ENABLED_SITES_KEY]: enabledSites });
+  selectionSiteEnabled = true;
+}
 
 function removeSelectionButton() {
   const existing = document.getElementById(SELECTION_BUTTON_ID);
@@ -89,7 +112,13 @@ function showSelectionButtonSample() {
 }
 
 function initSelectionButton() {
+  isCurrentSiteEnabled().then((enabled) => {
+    selectionSiteEnabled = enabled;
+    if (!enabled) removeSelectionButton();
+  });
+
   function updateSelectionButton() {
+    if (!selectionSiteEnabled) return;
     const selection = window.getSelection();
     const text = selection ? selection.toString().trim() : "";
 
@@ -110,6 +139,13 @@ function initSelectionButton() {
   });
 
   document.addEventListener("selectionchange", updateSelectionButton);
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes[ENABLED_SITES_KEY]) return;
+    const enabledSites = changes[ENABLED_SITES_KEY].newValue || [];
+    selectionSiteEnabled = enabledSites.includes(currentSiteOrigin());
+    if (!selectionSiteEnabled) removeSelectionButton();
+  });
 
   // Starting a new interaction elsewhere (not on the button itself) should
   // clear a stale button so none get left behind on the page.
